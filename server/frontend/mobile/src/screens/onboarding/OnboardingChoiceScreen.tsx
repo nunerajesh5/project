@@ -9,6 +9,7 @@ export default function OnboardingChoiceScreen({ navigation }: any) {
     <SafeAreaWrapper>
       <AppHeader
         hideLogo
+        backgroundColor="#FFFFFF"
         showLanguageSwitcher
         renderLanguageTrigger={(open) => (
           <TouchableOpacity onPress={open} style={styles.menuButton} activeOpacity={0.8}>

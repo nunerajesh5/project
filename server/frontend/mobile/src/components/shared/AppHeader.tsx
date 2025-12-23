@@ -49,7 +49,17 @@ export default function AppHeader({
     >
       {/* Left Section - Logo or Left Action */}
       <View style={styles.headerLeft}>
-        {leftAction ? (
+        {leftAction && title ? (
+          <View style={styles.headerLeftRow}>
+            <TouchableOpacity
+              style={[styles.leftActionButton, leftAction.style]}
+              onPress={leftAction.onPress}
+            >
+              <Text style={[styles.leftActionText, leftAction.iconStyle]}>{leftAction.icon}</Text>
+            </TouchableOpacity>
+            <Text style={styles.titleText}>{title}</Text>
+          </View>
+        ) : leftAction ? (
           <TouchableOpacity
             style={[styles.leftActionButton, leftAction.style]}
             onPress={leftAction.onPress}
@@ -97,15 +107,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
   },
   headerLeft: {
     minWidth: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerRight: {
     minWidth: 40,
@@ -125,17 +138,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   titleText: {
-    fontSize: 20,
-    fontWeight: '400',
+    fontSize: 18,
+    fontWeight: '500',
     color: '#FFFFFF',
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_500Medium',
   },
   leftActionButton: {
     padding: 0,
     borderRadius: 8,
   },
   leftActionText: {
-    fontSize: 34,
-    color: '#007AFF',
+    fontSize: 22,
+    color: '#FFFFFF',
   },
 });

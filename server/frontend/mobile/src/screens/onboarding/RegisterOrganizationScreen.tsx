@@ -12,6 +12,7 @@ import {
   Animated,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { Ionicons } from '@expo/vector-icons';
 import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import AppHeader from '../../components/shared/AppHeader';
 import Card from '../../components/shared/Card';
@@ -152,6 +153,8 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
   // Step 3 - License
   const [licenceNumber, setLicenceNumber] = useState('');
   const [plan, setPlan] = useState<'trial' | 'buy'>('trial');
+  const [showLicenseKeyModal, setShowLicenseKeyModal] = useState(false);
+  const [showLicenseField, setShowLicenseField] = useState(false);
 
   // Hidden/derived
   const [maxEmployees, setMaxEmployees] = useState('50');
@@ -271,7 +274,15 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
     stateProvince.trim() &&
     city.trim() &&
     zipCode.trim();
-  const canGoNextFromStep2 = isValidEmail(adminEmail) && emailVerified && adminPhone.trim() && phoneVerified && adminPassword.length >= 6 && adminPassword === confirmPassword;
+
+    // const canGoNextFromStep2 = isValidEmail(adminEmail) && emailVerified && adminPhone.trim() && phoneVerified && adminPassword.length >= 6 && adminPassword === confirmPassword;
+  // Temporarily allow progressing without enforcing email/phone OTP verification.
+  // We'll re-enable strict OTP checks later.
+  const canGoNextFromStep2 =
+    isValidEmail(adminEmail) &&
+    adminPhone.trim() &&
+    adminPassword.length >= 6 &&
+    adminPassword === confirmPassword;
 
   // Email OTP (mock local)
   const sendEmailOtp = () => {
@@ -713,12 +724,14 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
 
+              <View style={styles.spacer} />
+
               <View style={styles.navRow}>
                 <TouchableOpacity style={styles.outlineButton} onPress={() => setStep(1)}>
-                  <Text style={styles.outlineButtonText}>Back</Text>
+                  <Ionicons name="arrow-back" size={20} color="#877ED2" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.button, !canGoNextFromStep2 && styles.buttonDisabled]} onPress={() => setStep(3)} disabled={!canGoNextFromStep2}>
-                  <Text style={styles.buttonText}>Next</Text>
+                  <Text style={styles.buttonText}>Continue</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -728,25 +741,83 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
             <>
               <Text style={styles.sectionTitle}>License Details</Text>
 
-              <Text style={styles.labelInline}>License Number {plan === 'buy' ? '*' : '(optional)'}</Text>
-              <TextInput style={styles.inlineInput} value={licenceNumber} onChangeText={setLicenceNumber} placeholder="LIC-XXXX-XXXX" />
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBarTrack}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${progressWidth}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.progressStepText}>{step} of 3</Text>
+              </View>
 
               <Text style={styles.labelInline}>Plan</Text>
               <View style={styles.row}>
-                <TouchableOpacity style={[styles.chip, plan === 'trial' && styles.chipActive]} onPress={() => setPlan('trial')}>
-                  <Text style={[styles.chipText, plan === 'trial' && styles.chipTextActive]}>Trial</Text>
+                <TouchableOpacity
+                  style={[styles.chip, plan === 'trial' && styles.chipActive]}
+                  onPress={() => {
+                    setPlan('trial');
+                    setShowLicenseKeyModal(true);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      plan === 'trial' && styles.chipTextActive,
+                    ]}
+                  >
+                    Lite
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.chip, plan === 'buy' && styles.chipActive]} onPress={() => setPlan('buy')}>
-                  <Text style={[styles.chipText, plan === 'buy' && styles.chipTextActive]}>Buy</Text>
+                <TouchableOpacity
+                  style={[styles.chip, plan === 'buy' && styles.chipActive]}
+                  onPress={() => setPlan('buy')}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      plan === 'buy' && styles.chipTextActive,
+                    ]}
+                  >
+                    Pro
+                  </Text>
                 </TouchableOpacity>
               </View>
 
+              <Text style={styles.compareText}>
+                Compare Lite and Pro version
+              </Text>
+
+              {showLicenseField && (
+                <View style={styles.licenseFieldContainer}>
+                  <Text style={styles.licenseFieldLabel}>License Number</Text>
+                  <View style={styles.licenseFieldBox}>
+                    <Text style={styles.licenseFieldValue}>
+                      {licenceNumber || '****  ****  ****'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.spacer} />
+
               <View style={styles.navRow}>
-                <TouchableOpacity style={styles.outlineButton} onPress={() => setStep(2)}>
-                  <Text style={styles.outlineButtonText}>Back</Text>
+                <TouchableOpacity
+                  style={styles.outlineButton}
+                  onPress={() => setStep(2)}
+                >
+                  <Ionicons name="arrow-back" size={20} color="#877ED2" />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.button, submitting && { opacity: 0.6 }]} onPress={handleSubmit} disabled={submitting}>
-                  <Text style={styles.buttonText}>{submitting ? 'Creating...' : 'Create Organization'}</Text>
+                <TouchableOpacity
+                  style={[styles.button, submitting && { opacity: 0.6 }]}
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                >
+                  <Text style={styles.buttonText}>
+                    {submitting ? 'Creating...' : 'Create Organization'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -935,6 +1006,58 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* Generate License Key Modal */}
+      <Modal
+        visible={showLicenseKeyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLicenseKeyModal(false)}
+      >
+        <View style={styles.licenseModalOverlay}>
+          <TouchableOpacity
+            style={styles.licenseModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowLicenseKeyModal(false)}
+          />
+          <View style={styles.licenseModalContent}>
+            <TouchableOpacity
+              style={styles.licenseModalCloseButton}
+              onPress={() => setShowLicenseKeyModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.licenseModalCloseIcon}>✕</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.licenseModalTitle}>Generate License Key</Text>
+            <Text style={styles.licenseModalText}>
+              License key will be sent to your registered email ID. The key is valid for 12 hours
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.licenseModalSendButton}
+              onPress={() => {
+                // Handle send license key logic here
+                if (!licenceNumber) {
+                  // Just a masked placeholder for now; replace with real key if needed
+                  setLicenceNumber('****  ****  ****');
+                }
+                setShowLicenseField(true);
+                setShowLicenseKeyModal(false);
+              }}
+            >
+              <Text style={styles.licenseModalSendButtonText}>Send</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.licenseModalCancelLink}
+              onPress={() => setShowLicenseKeyModal(false)}
+            >
+              <Text style={styles.licenseModalCancelLinkText}>Changed my mind</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaWrapper>
   );
 }
@@ -945,6 +1068,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 32,
     paddingTop: 16,
+    flexGrow: 1,
   },
   wizardHeader: {
     marginBottom: 16,
@@ -1051,10 +1175,11 @@ const styles = StyleSheet.create({
   },
   labelInline: {
     fontSize: 14,
-    color: '#333',
+    color: '#8D8D8D',
     marginTop: 10,
     marginBottom: 6,
     fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   inlineInput: {
     borderWidth: 1,
@@ -1084,11 +1209,40 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: { fontWeight: '500', color: '#FFFFFF', fontSize: 14, fontFamily: 'Inter_500Medium' },
   verified: { backgroundColor: '#E6FFED', borderColor: '#34C759' },
-  chip: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#e1e5e9', marginRight: 8, backgroundColor: '#fff' },
-  chipActive: { backgroundColor: '#007AFF22', borderColor: '#007AFF' },
-  chipText: { color: '#111', fontWeight: '600' },
-  chipTextActive: { color: '#007AFF' },
-  navRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
+  chip: {
+    flex: 1,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#877ED2',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  chipActive: {
+    backgroundColor: '#877ED2',
+    borderColor: '#877ED2',
+  },
+  chipText: {
+    color: '#877ED2',
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+  },
+  spacer: {
+    flex: 1,
+    minHeight: 120,
+  },
+  navRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginTop: 24,
+    paddingBottom: 24,
+  },
   logoSection: {
     marginBottom: 16,
   },
@@ -1198,15 +1352,57 @@ const styles = StyleSheet.create({
   button: { 
     backgroundColor: '#877ED2', 
     borderRadius: 8, 
-    paddingVertical: 15,
-    paddingHorizontal: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     alignItems: 'center', 
-    marginTop: 24,
-    marginBottom: 16,
+    justifyContent: 'center',
+    flex: 1,
+    marginLeft: 12,
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#FFFFFF', fontWeight: '500', fontSize: 16 },
-  outlineButton: { borderWidth: 1, borderColor: '#e1e5e9', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 18, backgroundColor: '#fff' },
+  outlineButton: { 
+    borderWidth: 1, 
+    borderColor: '#877ED2', 
+    borderRadius: 8, 
+    paddingVertical: 12, 
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compareText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#877ED2',
+    textAlign: 'center',
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+  },
+  licenseFieldContainer: {
+    marginTop: 24,
+  },
+  licenseFieldLabel: {
+    fontSize: 12,
+    color: '#A3A3A3',
+    marginBottom: 4,
+    fontFamily: 'Inter_500Medium',
+  },
+  licenseFieldBox: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  licenseFieldValue: {
+    fontSize: 16,
+    color: '#808080',
+    letterSpacing: 2,
+  },
   outlineButtonText: { fontWeight: '700', color: '#111' },
   stepper: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 8 },
   stepCircle: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#e1e5e9', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
@@ -1349,5 +1545,91 @@ const styles = StyleSheet.create({
     color: '#877ED2',
     fontWeight: '500',
     fontFamily: 'Inter_500Medium',
+  },
+  // License Key Modal styles
+  licenseModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    
+  },
+  licenseModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  licenseModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 32,
+    width: '90%',
+    height: 320,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  licenseModalTitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#404040',
+    fontFamily: 'Inter_500Medium',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  licenseModalText: {
+    fontSize: 14,
+    color: '#404040',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+    paddingHorizontal: 8,
+  },
+  licenseModalSendButton: {
+    backgroundColor: '#877ED2',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  licenseModalSendButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  licenseModalCancelLink: {
+    alignItems: 'center',
+  },
+  licenseModalCancelLinkText: {
+    fontSize: 14,
+    color: '#877ED2',
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+  },
+  licenseModalCloseButton: {
+    position: 'absolute',
+    top: -50,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  licenseModalCloseIcon: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '500',
   },
 });

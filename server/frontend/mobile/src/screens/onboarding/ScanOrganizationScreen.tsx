@@ -201,29 +201,16 @@ export default function ScanOrganizationScreen({ navigation }: any) {
         </CameraView>
         
         <View style={styles.scannerControls}>
+          <Text style={styles.scannerOrText}>or</Text>
           <TouchableOpacity 
-            style={styles.switchModeButton} 
+            style={styles.scannerPrimaryButton} 
             onPress={() => {
               setMode('manual');
               setScanned(false);
             }}
           >
-            <Ionicons name="create-outline" size={20} color="#007AFF" />
-            <Text style={styles.switchModeText}>{t('organization.enter_code_manually')}</Text>
+            <Text style={styles.scannerPrimaryButtonText}>Enter Code Manually</Text>
           </TouchableOpacity>
-          
-          {scanned && (
-            <TouchableOpacity 
-              style={styles.rescanButton} 
-              onPress={() => {
-                setScanned(false);
-                setCode('');
-              }}
-            >
-              <Ionicons name="refresh-outline" size={20} color="#007AFF" />
-              <Text style={styles.rescanText}>{t('organization.scan_again')}</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     );
@@ -337,7 +324,19 @@ export default function ScanOrganizationScreen({ navigation }: any) {
 
   return (
     <SafeAreaWrapper>
-      <AppHeader />
+      <AppHeader
+        title="Scan QR Code"
+        backgroundColor="#111111"
+        leftAction={{
+          icon: '‹',
+          onPress: () => navigation.goBack(),
+        }}
+        rightAction={{
+          iconName: 'ellipsis-vertical',
+          iconColor: '#FFFFFF',
+          onPress: () => {},
+        }}
+      />
       <View style={styles.container}>
         {mode === 'scan' ? renderScanner() : renderManualEntry()}
       </View>
@@ -498,6 +497,24 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: 20,
     alignItems: 'center',
+  },
+  scannerOrText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  scannerPrimaryButton: {
+    width: '100%',
+    backgroundColor: '#877ED2',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scannerPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
   },
   switchModeButton: {
     flexDirection: 'row',
