@@ -344,7 +344,7 @@ export default function ProjectDetailsScreen() {
   }
 
   return (
-    <SafeAreaWrapper backgroundColor="#F5F6FA">
+    <SafeAreaWrapper backgroundColor="#F5F5F8">
       <View style={styles.container}>
         {/* Fixed Header with Purple Background */}
         <View style={styles.fixedHeader}>
@@ -423,7 +423,7 @@ export default function ProjectDetailsScreen() {
                   onPress={() => navigation.navigate('EmployeeAllTasks', { projectId: id })}
                 >
                   <Text style={styles.allButtonText}>All</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#8E8E93" />
+                  <Ionicons name="chevron-forward" size={20} color="#8F8F8F" />
                 </TouchableOpacity>
               </View>
               {tasks.length > 0 ? (
@@ -725,7 +725,7 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
-    // backgroundColor: '#877ED2',
+    // backgroundColor: 'transparent',
   },
   scrollContent: {
     padding: 16,
@@ -984,7 +984,6 @@ const styles = StyleSheet.create({
   tasksSection: {
     marginTop: 24,
     paddingBottom: 20,
-    paddingHorizontal: 0,
     height: 320,
   },
   tasksHeader: {
@@ -1015,7 +1014,7 @@ const styles = StyleSheet.create({
   },
   taskCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 10,
     padding: 16,
     marginRight: 12,
     width: 280,
@@ -1105,7 +1104,7 @@ const styles = StyleSheet.create({
   },
   teamCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 10,
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1207,7 +1206,6 @@ const styles = StyleSheet.create({
   },
   attachmentsSection: {
     marginTop: 24,
-    paddingHorizontal: 0,
     paddingBottom: 20,
   },
   attachmentsTitle: {
@@ -1224,7 +1222,6 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     backgroundColor: '#F5F6FA',
-    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
     marginRight: 8,
@@ -1238,24 +1235,31 @@ const styles = StyleSheet.create({
   attachmentsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 13,
   },
   attachmentCard: {
     width: '31%',
-    backgroundColor: '#F5F6FA',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 4,
     alignItems: 'center',
     minHeight: 100,
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 0,
   },
   attachmentFileName: {
-    fontSize: 12,
-    color: '#000000',
+    fontSize: 10,
+    color: '#727272',
     marginTop: 8,
     textAlign: 'center',
     fontWeight: '400',
+    fontFamily: typography.families.regular,
   },
   noAttachmentsText: {
     fontSize: 14,

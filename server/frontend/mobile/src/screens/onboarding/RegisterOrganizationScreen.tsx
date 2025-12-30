@@ -10,9 +10,11 @@ import {
   TextInputProps,
   Modal,
   Animated,
+  Image,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import AppHeader from '../../components/shared/AppHeader';
 import Card from '../../components/shared/Card';
@@ -111,6 +113,71 @@ function FloatingLabelPicker({
   );
 }
 
+interface FloatingLabelPasswordInputProps extends TextInputProps {
+  label: string;
+  showPassword: boolean;
+  onTogglePassword: () => void;
+}
+
+function FloatingLabelPasswordInput({ 
+  label, 
+  showPassword, 
+  onTogglePassword, 
+  style, 
+  ...rest 
+}: FloatingLabelPasswordInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = typeof rest.value === 'string' ? rest.value.trim().length > 0 : !!rest.value;
+  const showFloatingLabel = isFocused || hasValue;
+  const basePlaceholder = (rest.placeholder as string) || label;
+  const placeholderColor = rest.placeholderTextColor ?? '#727272';
+
+  return (
+    <View style={styles.floatingContainer}>
+      {showFloatingLabel && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {label}
+        </Text>
+      )}
+      <View style={[
+        styles.floatingPasswordWrapper,
+        isFocused && styles.floatingInputFocused,
+      ]}>
+        <TextInput
+          {...rest}
+          placeholder={showFloatingLabel ? '' : basePlaceholder}
+          placeholderTextColor={placeholderColor}
+          secureTextEntry={!showPassword}
+          style={[
+            styles.floatingPasswordInput,
+            showFloatingLabel && styles.floatingInputWithLabel,
+            style,
+          ]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            rest.onFocus && rest.onFocus(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            rest.onBlur && rest.onBlur(e);
+          }}
+        />
+        <TouchableOpacity
+          style={styles.floatingPasswordToggle}
+          onPress={onTogglePassword}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons 
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+            size={22} 
+            color="#877ED2" 
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 export default function RegisterOrganizationScreen({ navigation }: any) {
   // Wizard
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -124,6 +191,8 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
   const [stateProvince, setStateProvince] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [logoName, setLogoName] = useState<string | null>(null);
+  const [logoUri, setLogoUri] = useState<string | null>(null);
+  const [showLogoPickerModal, setShowLogoPickerModal] = useState(false);
 
   // Step 2 - Admin Credentials
   const [adminEmail, setAdminEmail] = useState('');
@@ -144,7 +213,7 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
   const otpInputRefs = useRef<(TextInput | null)[]>([]);
   const slideAnim = useRef(new Animated.Value(500)).current;
   const [showPhoneOtpModal, setShowPhoneOtpModal] = useState(false);
-  const [phoneOtpDigits, setPhoneOtpDigits] = useState(['', '', '', '']);
+  const [phoneOtpDigits, setPhoneOtpDigits] = useState(['', '', '', '', '', '']); // 6-digit OTP for WhatsApp
   const [phoneOtpTimer, setPhoneOtpTimer] = useState(30);
   const [phoneOtpGenerated, setPhoneOtpGenerated] = useState('');
   const phoneOtpInputRefs = useRef<(TextInput | null)[]>([]);
@@ -393,27 +462,40 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
     return `${masked}@${domain}`;
   };
 
-  // Phone OTP via service
+  // Phone OTP via WhatsApp
   const sendPhoneOtp = async () => {
     try {
       if (!adminPhone.trim()) {
         Alert.alert('Error', 'Please enter phone number');
         return;
       }
-      // Generate 4-digit code for modal
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
-      setPhoneOtpGenerated(code);
+      if (adminPhone.trim().length !== 10) {
+        Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+        return;
+      }
+      
       setPhoneOtpTimer(30);
-      setPhoneOtpDigits(['', '', '', '']);
+      setPhoneOtpDigits(['', '', '', '', '', '']); // 6-digit OTP
       setShowPhoneOtpModal(true);
       
-      // Also call the actual OTP service
+      // Call the WhatsApp OTP service
       const res = await otp.sendOTP(adminPhone);
-      if (!res.success) {
-        Alert.alert('Error', res.message || 'Failed to send OTP');
+      if (res.success) {
+        // Store the OTP for verification (in development mode, API returns OTP)
+        if (res.otp) {
+          setPhoneOtpGenerated(res.otp);
+        }
+        // Show WhatsApp notification
+        Alert.alert(
+          '📱 WhatsApp OTP Sent', 
+          `A 6-digit verification code has been sent to your WhatsApp number +91 ${adminPhone}. Please check your WhatsApp messages.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', res.message || 'Failed to send OTP to WhatsApp');
       }
     } catch (error: any) {
-      console.error('Send phone OTP error:', error);
+      console.error('Send WhatsApp OTP error:', error);
       Alert.alert('Error', error.message || 'Failed to send OTP. Please check your connection.');
     }
   };
@@ -458,16 +540,16 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
     newOtp[index] = text;
     setPhoneOtpDigits(newOtp);
 
-    // Auto-focus next input
-    if (text && index < 3) {
+    // Auto-focus next input (6 digits for WhatsApp OTP)
+    if (text && index < 5) {
       phoneOtpInputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-verify when all 4 digits are entered
+    // Auto-verify when all 6 digits are entered
     if (newOtp.every((digit) => digit !== '') && newOtp.join('') === phoneOtpGenerated) {
       setPhoneVerified(true);
       setShowPhoneOtpModal(false);
-      Alert.alert('Success', 'Phone verified');
+      Alert.alert('✅ Success', 'WhatsApp number verified successfully!');
     }
   };
 
@@ -477,16 +559,36 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
     }
   };
 
-  const verifyPhoneOtp = () => {
+  const verifyPhoneOtp = async () => {
     const enteredOtp = phoneOtpDigits.join('');
-    if (enteredOtp === phoneOtpGenerated) {
-      setPhoneVerified(true);
-      setShowPhoneOtpModal(false);
-      Alert.alert('Success', 'Phone verified');
-    } else {
-      Alert.alert('Invalid OTP', 'Please enter the correct code');
-      setPhoneOtpDigits(['', '', '', '']);
-      phoneOtpInputRefs.current[0]?.focus();
+    if (enteredOtp.length !== 6) {
+      Alert.alert('Invalid OTP', 'Please enter the complete 6-digit code');
+      return;
+    }
+    
+    try {
+      // Verify OTP via backend
+      const res = await otp.verifyOTP(adminPhone, enteredOtp);
+      if (res.success) {
+        setPhoneVerified(true);
+        setShowPhoneOtpModal(false);
+        Alert.alert('✅ Success', 'WhatsApp number verified successfully!');
+      } else {
+        Alert.alert('Invalid OTP', res.message || 'Please enter the correct code from WhatsApp');
+        setPhoneOtpDigits(['', '', '', '', '', '']);
+        phoneOtpInputRefs.current[0]?.focus();
+      }
+    } catch (error: any) {
+      // Fallback to local verification for development
+      if (enteredOtp === phoneOtpGenerated) {
+        setPhoneVerified(true);
+        setShowPhoneOtpModal(false);
+        Alert.alert('✅ Success', 'WhatsApp number verified successfully!');
+      } else {
+        Alert.alert('Invalid OTP', 'Please enter the correct code from WhatsApp');
+        setPhoneOtpDigits(['', '', '', '', '', '']);
+        phoneOtpInputRefs.current[0]?.focus();
+      }
     }
   };
 
@@ -498,7 +600,7 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
 
   const maskPhone = (phone: string) => {
     if (phone.length <= 4) return phone;
-    return 'xxxx' + phone.slice(-4);
+    return 'xxxxxx' + phone.slice(-4);
   };
 
   return (
@@ -559,17 +661,17 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                 <TouchableOpacity
                   style={styles.logoUploadRow}
                   activeOpacity={0.8}
-                  onPress={() => {
-                    Alert.alert(
-                      'Upload logo',
-                      'Logo upload is not implemented yet in this build.'
-                    );
-                  }}
+                  onPress={() => setShowLogoPickerModal(true)}
                 >
-                  <Text style={styles.logoPlaceholder}>
-                    {logoName ? logoName : 'Add files'}
-                  </Text>
-                  <Text style={styles.logoAttachText}>Attach</Text>
+                  {logoUri ? (
+                    <View style={styles.logoPreviewContainer}>
+                      <Image source={{ uri: logoUri }} style={styles.logoPreview} />
+                      <Text style={styles.logoFileName} numberOfLines={1}>{logoName}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.logoPlaceholder}>Add files</Text>
+                  )}
+                  <Text style={styles.logoAttachText}>{logoUri ? 'Change' : 'Attach'}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -672,7 +774,7 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                   </View>
                   <View style={styles.phoneInputWrapper}>
                     <FloatingLabelInput
-                      label="Phone*"
+                      label="WhatsApp Phone*"
                       value={adminPhone}
                       onChangeText={(t) => { setAdminPhone(t); setPhoneVerified(false); }}
                       keyboardType="phone-pad"
@@ -681,48 +783,43 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                     />
                   </View>
                 </View>
-                <TouchableOpacity style={styles.phoneOtpButton} onPress={sendPhoneOtp}>
-                  <Text style={styles.secondaryButtonText}>Send OTP</Text>
+                <TouchableOpacity style={styles.whatsappOtpButton} onPress={sendPhoneOtp}>
+                  <Ionicons name="logo-whatsapp" size={16} color="#fff" style={{ marginRight: 4 }} />
+                  <Text style={styles.whatsappButtonText}>Send OTP</Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
+              {phoneVerified && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#25D366" />
+                  <Text style={styles.verifiedText}>WhatsApp verified</Text>
+                </View>
+              )}
+              <View style={styles.passwordFieldContainer}>
+                <FloatingLabelPasswordInput
+                  label="Password*"
+                  placeholder="Password*"
                   value={adminPassword}
                   onChangeText={setAdminPassword}
-                  placeholder="Password*"
-                  secureTextEntry={!showPassword}
+                  showPassword={showPassword}
+                  onTogglePassword={() => setShowPassword((prev) => !prev)}
                   autoCapitalize="none"
                 />
-                <TouchableOpacity
-                  style={styles.passwordToggle}
-                  onPress={() => setShowPassword((prev) => !prev)}
-                >
-                  <Text style={styles.passwordToggleIcon}>{showPassword ? '🙈' : '👁️'}</Text>
-                </TouchableOpacity>
+                {adminPassword.length > 0 && (
+                  <Text style={styles.passwordStrengthInline}>
+                    {adminPassword.length >= 6 ? 'Strong' : 'Weak'}
+                  </Text>
+                )}
               </View>
-              {adminPassword.length > 0 && (
-                <Text style={styles.passwordStrength}>
-                  {adminPassword.length >= 6 ? 'Strong' : 'Weak'}
-                </Text>
-              )}
 
-              <View style={[styles.passwordContainer, { marginTop: 12 }]}>
-                <TextInput
-                  style={styles.passwordInput}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm Password*"
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  style={styles.passwordToggle}
-                  onPress={() => setShowConfirmPassword((prev) => !prev)}
-                >
-                  <Text style={styles.passwordToggleIcon}>{showConfirmPassword ? '🙈' : '👁️'}</Text>
-                </TouchableOpacity>
-              </View>
+              <FloatingLabelPasswordInput
+                label="Confirm Password*"
+                placeholder="Confirm Password*"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                showPassword={showConfirmPassword}
+                onTogglePassword={() => setShowConfirmPassword((prev) => !prev)}
+                autoCapitalize="none"
+              />
 
               <View style={styles.spacer} />
 
@@ -825,6 +922,76 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
 
       </ScrollView>
 
+      {/* Logo Picker Modal */}
+      <Modal
+        visible={showLogoPickerModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLogoPickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.logoModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLogoPickerModal(false)}
+        >
+          <View style={styles.logoModalContent}>
+            <Text style={styles.logoModalTitle}>Upload Logo</Text>
+            <TouchableOpacity
+              style={styles.logoModalOption}
+              onPress={async () => {
+                setShowLogoPickerModal(false);
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission Denied', 'Camera permission is required to take photos.');
+                  return;
+                }
+                const result = await ImagePicker.launchCameraAsync({
+                  mediaTypes: ['images'],
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  const asset = result.assets[0];
+                  const fileName = asset.uri.split('/').pop() || 'logo.jpg';
+                  setLogoName(fileName);
+                  setLogoUri(asset.uri);
+                }
+              }}
+            >
+              <Ionicons name="camera-outline" size={24} color="#877ED2" />
+              <Text style={styles.logoModalOptionText}>Take Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.logoModalOption}
+              onPress={async () => {
+                setShowLogoPickerModal(false);
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permission Denied', 'Gallery permission is required to select photos.');
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ['images'],
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  const asset = result.assets[0];
+                  const fileName = asset.uri.split('/').pop() || 'logo.jpg';
+                  setLogoName(fileName);
+                  setLogoUri(asset.uri);
+                }
+              }}
+            >
+              <Ionicons name="images-outline" size={24} color="#877ED2" />
+              <Text style={styles.logoModalOptionText}>Choose from Gallery</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Email OTP Modal */}
       <Modal
         visible={showEmailOtpModal}
@@ -916,7 +1083,7 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      {/* Phone OTP Modal */}
+      {/* WhatsApp Phone OTP Modal */}
       <Modal
         visible={showPhoneOtpModal}
         transparent={true}
@@ -938,7 +1105,10 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
             ]}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Verify your phone</Text>
+              <View style={styles.whatsappHeaderRow}>
+                <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+                <Text style={styles.modalTitle}>Verify via WhatsApp</Text>
+              </View>
               <TouchableOpacity
                 style={styles.modalCloseButton}
                 onPress={() => setShowPhoneOtpModal(false)}
@@ -947,10 +1117,11 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
-              Please enter the 4 digit sent to your mobile {adminPhone ? maskPhone(adminPhone) : 'xxxx1653'}
+              Please enter the 6-digit code sent to your WhatsApp{'\n'}
+              <Text style={styles.whatsappNumber}>+91 {adminPhone || 'xxxxxxxxxx'}</Text>
             </Text>
 
-            <View style={styles.otpContainer}>
+            <View style={styles.otpContainerSix}>
               {phoneOtpDigits.map((digit, index) => (
                 <TextInput
                   key={index}
@@ -958,7 +1129,7 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                     phoneOtpInputRefs.current[index] = ref;
                   }}
                   style={[
-                    styles.otpInput,
+                    styles.otpInputSix,
                     digit && styles.otpInputFilled,
                     index === phoneOtpDigits.findIndex((d) => d === '') && styles.otpInputActive,
                   ]}
@@ -970,29 +1141,37 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                   selectTextOnFocus
                 />
               ))}
-              {phoneOtpTimer > 0 && (
-                <View style={styles.timerContainer}>
-                  <View style={styles.timerSpinner} />
-                  <Text style={styles.timerText}>
-                    {String(Math.floor(phoneOtpTimer / 60)).padStart(2, '0')}:
-                    {String(phoneOtpTimer % 60).padStart(2, '0')}
-                  </Text>
-                </View>
-              )}
             </View>
+
+            {phoneOtpTimer > 0 && (
+              <View style={styles.timerContainerCenter}>
+                <View style={styles.timerSpinner} />
+                <Text style={styles.timerText}>
+                  Code expires in {String(Math.floor(phoneOtpTimer / 60)).padStart(2, '0')}:
+                  {String(phoneOtpTimer % 60).padStart(2, '0')}
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={[styles.resendLink, phoneOtpTimer > 0 && styles.resendLinkDisabled]}
               onPress={resendPhoneOtp}
               disabled={phoneOtpTimer > 0}
             >
+              <Ionicons 
+                name="logo-whatsapp" 
+                size={16} 
+                color={phoneOtpTimer > 0 ? '#999' : '#25D366'} 
+                style={{ marginRight: 6 }}
+              />
               <Text style={[styles.resendLinkText, phoneOtpTimer > 0 && styles.resendLinkTextDisabled]}>
-                Resend OTP
+                Resend OTP via WhatsApp
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.modalConfirmButton} onPress={verifyPhoneOtp}>
-              <Text style={styles.modalConfirmButtonText}>Confirm</Text>
+            <TouchableOpacity style={styles.whatsappConfirmButton} onPress={verifyPhoneOtp}>
+              <Ionicons name="checkmark-circle" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.modalConfirmButtonText}>Verify Code</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1001,7 +1180,7 @@ export default function RegisterOrganizationScreen({ navigation }: any) {
                 setShowPhoneOtpModal(false);
               }}
             >
-              <Text style={styles.changeEmailLinkText}>Change Phone</Text>
+              <Text style={styles.changeEmailLinkText}>Change Phone Number</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -1207,6 +1386,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: -10,
   },
+  whatsappOtpButton: {
+    flexDirection: 'row',
+    width: 110,
+    height: 47,
+    borderRadius: 8,
+    backgroundColor: '#25D366',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
+  },
+  whatsappButtonText: {
+    fontWeight: '500',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    marginTop: -4,
+  },
+  verifiedText: {
+    color: '#25D366',
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
   secondaryButtonText: { fontWeight: '500', color: '#FFFFFF', fontSize: 14, fontFamily: 'Inter_500Medium' },
   verified: { backgroundColor: '#E6FFED', borderColor: '#34C759' },
   chip: {
@@ -1287,6 +1499,25 @@ const styles = StyleSheet.create({
     color: '#6F67CC',
     fontFamily: 'Inter_600SemiBold',
   },
+  logoPreviewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  logoPreview: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    marginRight: 10,
+    backgroundColor: '#F0F0F0',
+  },
+  logoFileName: {
+    fontSize: 14,
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
+    color: '#333333',
+    flex: 1,
+  },
   phoneContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1341,10 +1572,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6F67CC',
   },
+  floatingPasswordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    paddingRight: 12,
+    minHeight: 50,
+  },
+  floatingPasswordInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  floatingPasswordToggle: {
+    padding: 4,
+  },
+  passwordFieldContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
   passwordStrength: {
     alignSelf: 'flex-end',
     marginTop: 4,
     marginRight: 4,
+    fontSize: 12,
+    color: '#22C55E',
+    fontWeight: '500',
+  },
+  passwordStrengthInline: {
+    position: 'absolute',
+    right: 4,
+    bottom: -2,
     fontSize: 12,
     color: '#22C55E',
     fontWeight: '500',
@@ -1511,6 +1775,8 @@ const styles = StyleSheet.create({
   resendLink: {
     alignSelf: 'flex-start',
     marginBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   resendLinkDisabled: {
     opacity: 0.5,
@@ -1523,6 +1789,50 @@ const styles = StyleSheet.create({
   },
   resendLinkTextDisabled: {
     color: '#999',
+  },
+  // WhatsApp OTP Modal styles
+  whatsappHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  whatsappNumber: {
+    color: '#25D366',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  otpContainerSix: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 8,
+  },
+  otpInputSix: {
+    width: 45,
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    color: '#333',
+    backgroundColor: '#FAFAFA',
+  },
+  timerContainerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  whatsappConfirmButton: {
+    backgroundColor: '#25D366',
+    borderRadius: 8,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   modalConfirmButton: {
     backgroundColor: '#877ED2',
@@ -1544,6 +1854,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#877ED2',
     fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+  },
+  // Logo Picker Modal styles
+  logoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    width: '80%',
+    maxWidth: 320,
+  },
+  logoModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333333',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  logoModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  logoModalOptionText: {
+    fontSize: 16,
+    color: '#333333',
+    marginLeft: 16,
     fontFamily: 'Inter_500Medium',
   },
   // License Key Modal styles

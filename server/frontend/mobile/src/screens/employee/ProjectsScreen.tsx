@@ -169,7 +169,7 @@ export default function ProjectsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Projects</Text>
         <TouchableOpacity style={styles.headerButton}>
@@ -321,10 +321,45 @@ export default function ProjectsScreen() {
                           </View>
                           <View style={styles.inProgressBar} />
                         </>
+                      ) : project.status === 'completed' ? (
+                        <>
+                          <View style={styles.overdueRow}>
+                            <Text style={styles.dateLabel}>Completed</Text>
+                            <Ionicons name="checkmark-circle" size={14} color="#34C759" />
+                          </View>
+                          <View style={styles.completedBar} />
+                        </>
+                      ) : project.status === 'pending' || project.status === 'todo' ? (
+                        <>
+                          <View style={styles.overdueRow}>
+                            <Text style={styles.dateLabel}>New</Text>
+                            <Text style={styles.newValue}>{daysRemaining}d</Text>
+                          </View>
+                          <View style={styles.newBar} />
+                        </>
+                      ) : project.status === 'on_hold' ? (
+                        <>
+                          <View style={styles.overdueRow}>
+                            <Text style={styles.dateLabel}>On Hold</Text>
+                            <Ionicons name="pause-circle" size={14} color="#FF9500" />
+                          </View>
+                          <View style={styles.onHoldBar} />
+                        </>
+                      ) : project.status === 'cancelled' ? (
+                        <>
+                          <View style={styles.overdueRow}>
+                            <Text style={styles.dateLabel}>Cancelled</Text>
+                            <Ionicons name="close-circle" size={14} color="#FF3B30" />
+                          </View>
+                          <View style={styles.cancelledBar} />
+                        </>
                       ) : (
                         <>
-                          <Text style={styles.dateLabel}>Status</Text>
-                          <Text style={styles.dateValue}>-</Text>
+                          <View style={styles.overdueRow}>
+                            <Text style={styles.dateLabel}>Status</Text>
+                            <Text style={styles.unknownValue}>—</Text>
+                          </View>
+                          <View style={styles.unknownBar} />
                         </>
                       )}
                     </View>
@@ -380,7 +415,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filterContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     paddingTop: 16,
     paddingBottom: 0,
     borderBottomWidth: 1,
@@ -413,11 +448,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   searchContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E6EB',
+    borderBottomWidth: 0,
+    borderBottomColor: 'transparent',
   },
   searchRow: {
     flexDirection: 'row',
@@ -600,6 +635,58 @@ const styles = StyleSheet.create({
   inProgressBar: {
     height: 2,
     backgroundColor: '#85C369',
+    borderRadius: 4,
+    width: 90,
+    marginTop: 4,
+    marginLeft: 26,
+  },
+  completedBar: {
+    height: 2,
+    backgroundColor: '#34C759',
+    borderRadius: 4,
+    width: 90,
+    marginTop: 4,
+    marginLeft: 26,
+  },
+  newValue: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#007AFF',
+    fontFamily: typography.families.bold,
+  },
+  newBar: {
+    height: 2,
+    backgroundColor: '#007AFF',
+    borderRadius: 4,
+    width: 90,
+    marginTop: 4,
+    marginLeft: 26,
+  },
+  onHoldBar: {
+    height: 2,
+    backgroundColor: '#FF9500',
+    borderRadius: 4,
+    width: 90,
+    marginTop: 4,
+    marginLeft: 26,
+  },
+  cancelledBar: {
+    height: 2,
+    backgroundColor: '#FF3B30',
+    borderRadius: 4,
+    width: 90,
+    marginTop: 4,
+    marginLeft: 26,
+  },
+  unknownValue: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8E8E93',
+    fontFamily: typography.families.bold,
+  },
+  unknownBar: {
+    height: 2,
+    backgroundColor: '#8E8E93',
     borderRadius: 4,
     width: 90,
     marginTop: 4,

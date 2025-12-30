@@ -358,25 +358,36 @@ export default function EmployeeDashboardScreen() {
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.dashboardSectionTitle}>Projects</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('EmployeeProjects')}>
-              <Text style={styles.sectionAction}>All ›</Text>
+            <TouchableOpacity style={styles.sectionActionRow} onPress={() => navigation.navigate('EmployeeProjects')}>
+              <Text style={styles.sectionAction}>All</Text>
+              <Ionicons name="chevron-forward" size={20} color="#8F8F8F" />
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.projectsHorizontalList}>
             {assignedProjects.slice(0, 5).map(project => (
               <TouchableOpacity
                 key={project.id}
-                style={[styles.miniCard]}
+                style={styles.projectCard}
                 onPress={() => navigation.navigate('EmployeeProjectDetails', { id: project.id })}
               >
-                <View style={styles.miniCardContent}>
-                  <Text style={styles.miniCardTitle} numberOfLines={2}>{project.name}</Text>
-                  <Text style={styles.miniCardMeta} numberOfLines={1}>{(project as any).location || 'No location'}</Text>
-                  {(project as any).start_date && (project as any).end_date && (
-                    <Text style={styles.miniCardDates}>
-                      Start <Text style={styles.miniCardDateValue}>{new Date((project as any).start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</Text> · End <Text style={styles.miniCardDateValue}>{new Date((project as any).end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
+                <View style={styles.projectCardBorder} />
+                <View style={styles.projectCardContent}>
+                  <Text style={styles.projectCardName} numberOfLines={1}>{project.name}</Text>
+                  <Text style={styles.projectCardLocation} numberOfLines={1}>{(project as any).location || 'No location'}</Text>
+                  <View style={styles.projectCardDatesRow}>
+                    <Text style={styles.projectCardDateLabel}>Start </Text>
+                    <Text style={styles.projectCardDateValue}>
+                      {(project as any).start_date 
+                        ? new Date((project as any).start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ')
+                        : '—'}
                     </Text>
-                  )}
+                    <Text style={styles.projectCardDateLabel}>  End </Text>
+                    <Text style={styles.projectCardDateValue}>
+                      {(project as any).end_date 
+                        ? new Date((project as any).end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, ' ')
+                        : '—'}
+                    </Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             ))}
@@ -392,8 +403,9 @@ export default function EmployeeDashboardScreen() {
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.dashboardSectionTitle}>Task</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('EmployeeAllTasks')}>
-              <Text style={styles.sectionAction}>All ›</Text>
+            <TouchableOpacity style={styles.sectionActionRow} onPress={() => navigation.navigate('EmployeeAllTasks')}>
+              <Text style={styles.sectionAction}>All</Text>
+              <Ionicons name="chevron-forward" size={20} color="#8F8F8F" />
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
@@ -442,8 +454,9 @@ export default function EmployeeDashboardScreen() {
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.dashboardSectionTitle}>Productivity</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('TimeEntries')}>
-              <Text style={styles.sectionAction}>All ›</Text>
+            <TouchableOpacity style={styles.sectionActionRow} onPress={() => navigation.navigate('TimeEntries')}>
+              <Text style={styles.sectionAction}>All</Text>
+              <Ionicons name="chevron-forward" size={20} color="#8F8F8F" />
             </TouchableOpacity>
           </View>
           <Card style={styles.productivityCard}>
@@ -451,18 +464,20 @@ export default function EmployeeDashboardScreen() {
               <View style={styles.productivityTextColumn}>
                 <View style={styles.productivityInfoRow}>
                   <Text style={styles.productivityInfoLabel}>This week</Text>
-                  <Text style={styles.productivityInfoValue}>{getWeekDateRange()}</Text>
+                  <Text style={styles.productivityDateValue}>{getWeekDateRange()}</Text>
                 </View>
                 <View style={styles.productivityInfoRow}>
-                  <Text style={styles.productivityInfoLabel}>Time Worked</Text>
+                  <Text style={styles.productivityInfoLabel}>Time worked</Text>
                   <View style={styles.hoursContainer}>
                     <Text style={styles.hoursNumber}>{getWeekTotalHours()}</Text>
-                    <Text style={styles.hoursUnit}>hr / 5 d</Text>
+                    <Text style={styles.hoursUnit}> hr</Text>
+                    <Text style={styles.hoursDivider}>/</Text>
+                    <Text style={styles.hoursUnit}>5 d</Text>
                   </View>
                 </View>
                 <View style={styles.productivityInfoRow}>
                   <Text style={styles.productivityInfoLabel}>Task</Text>
-                  <Text style={styles.productivityInfoValue}>{myTasks.length}</Text>
+                  <Text style={styles.productivityTaskValue}>{myTasks.length}</Text>
                 </View>
               </View>
               <View style={styles.productivityBars}>
@@ -494,37 +509,38 @@ export default function EmployeeDashboardScreen() {
                     return { day, date, hours, dateKey };
                   });
                   
-                  const maxHours = Math.max(...days.map(d => d.hours), 1);
+                  const maxHours = Math.max(...days.map(d => d.hours), 8); // minimum 8 for proper scaling
                   
                   return days.map((item, index) => {
                     const isWeekend = item.day === 'Sun' || item.day === 'Sat';
                     // Force weekends to 0 hours (holidays)
                     const displayHours = isWeekend ? 0 : item.hours;
                     const barHeightPercent = maxHours > 0 && displayHours > 0 ? (displayHours / maxHours) * 100 : 0;
-                    const showFill = displayHours > 0;
-                    // Calculate actual height in pixels (100px is the full bar height)
-                    const fillHeight = showFill ? (barHeightPercent / 100) * 100 : 4;
-                    const fillColor = showFill ? '#877ED2' : '#E5E5EA';
+                    // Calculate actual height in pixels (71px is the full bar height)
+                    const fillHeight = displayHours > 0 ? Math.max((barHeightPercent / 100) * 71, 8) : 0;
                     
                     return (
                       <View key={index} style={styles.barContainer}>
-                        <Text style={[styles.barCount, displayHours === 0 && styles.barCountZero]}>{displayHours}</Text>
+                        {displayHours === 0 ? (
+                          <View style={styles.barCountCircle}>
+                            <Text style={styles.barCountZeroText}>{displayHours}</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.barCount}>{displayHours}</Text>
+                        )}
                         <View style={styles.barWrapper}>
-                          <View style={[styles.bar, { height: 100 }]} />
-                          <View 
-                            style={[
-                              styles.barFill, 
-                              { 
-                                height: fillHeight,
-                                backgroundColor: fillColor
-                              }
-                            ]} 
-                          />
+                          <View style={styles.barBackground} />
+                          {displayHours > 0 && (
+                            <View 
+                              style={[
+                                styles.barFill, 
+                                { height: fillHeight }
+                              ]} 
+                            />
+                          )}
                         </View>
-                        <View style={styles.barLabels}>
-                          <Text style={styles.barDay}>{item.day}</Text>
-                          <Text style={styles.barDate}>{item.date}</Text>
-                        </View>
+                        <Text style={styles.barDay}>{item.day}</Text>
+                        <Text style={styles.barDate}>{item.date}</Text>
                       </View>
                     );
                   });
@@ -732,6 +748,11 @@ const styles = StyleSheet.create({
     fontFamily: typography.families.regular,
     fontWeight: '400',
   },
+  sectionActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   horizontalList: {
     paddingLeft: 20,
     paddingRight: 10,
@@ -746,6 +767,66 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     paddingTop: 10,
     justifyContent: 'center',
+  },
+  projectCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    width: 280,
+    height: 90,
+    marginRight: 12,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  projectCardBorder: {
+    width: 4,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  projectCardContent: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    justifyContent: 'space-between',
+  },
+  projectCardName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#404040',
+    fontFamily: 'Inter_500Medium',
+    lineHeight: 20,
+  },
+  projectCardLocation: {
+    fontSize: 11,
+    color: '#888888',
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    lineHeight: 14,
+    marginTop: -2,
+  },
+  projectCardDatesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    marginTop: 2,
+  },
+  projectCardDateLabel: {
+    fontSize: 10,
+    color: '#888888',
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+  },
+  projectCardDateValue: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    fontFamily: typography.families.medium,
   },
   miniCard: {
     backgroundColor: '#FFFFFF',
@@ -830,7 +911,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 5 },
     shadowRadius: 14,
-    elevation: 6,
+    elevation: 4,
     marginRight: 12,
   },
   taskBadgeRow: {
@@ -936,40 +1017,53 @@ const styles = StyleSheet.create({
   },
   productivityCard: {
     marginHorizontal: 20,
-    padding: 20,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E8E8ED',
-    shadowColor: '#877ED2',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: 7,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 2,
     marginBottom: 16,
   },
   productivityContent: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 16,
   },
   productivityTextColumn: {
-    flex: 1,
+    flex: 0.9,
     justifyContent: 'flex-start',
+    paddingTop: 4,
   },
   productivityInfoRow: {
-    marginBottom: 18,
+    marginBottom: 14,
   },
   productivityInfoLabel: {
-    fontSize: 10,
-    color: '#727272',
+    fontSize: 11,
+    color: '#888888',
     fontWeight: '400',
     fontFamily: typography.families.regular,
-    letterSpacing: 0,
+    marginBottom: 2,
   },
   productivityInfoValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#404040',
+    color: '#1A1A1A',
+    fontFamily: typography.families.bold,
+  },
+  productivityDateValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    fontFamily: 'Inter_600SemiBold',
+  },
+  productivityTaskValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A1A1A',
     fontFamily: typography.families.bold,
   },
   hoursContainer: {
@@ -977,86 +1071,90 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   hoursNumber: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#404040',
+    color: '#1A1A1A',
     fontFamily: typography.families.bold,
-    letterSpacing: -0.5,
   },
   hoursUnit: {
-    fontSize: 10,
-    color: '#727272',
-    marginLeft: 4,
+    fontSize: 11,
+    color: '#888888',
+    fontFamily: typography.families.regular,
+  },
+  hoursDivider: {
+    fontSize: 11,
+    color: '#888888',
+    marginHorizontal: 3,
     fontFamily: typography.families.regular,
   },
   productivityBars: {
-    flex: 1.5,
+    flex: 1.6,
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    minHeight: 140,
+    paddingBottom: 0,
   },
   barContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingHorizontal: 1,
+    width: 28,
   },
   barCount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6F67CC',
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#888888',
     marginBottom: 4,
     textAlign: 'center',
   },
-  barCountZero: {
-    color: '#727272',
-    height: 14,
-    width: 14,
+  barCountCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#F4F4F4',
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  barCountZeroText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#888888',
   },
   barWrapper: {
-    width: '80%',
-    height: 100,
+    width: 12,
+    height: 110,
     justifyContent: 'flex-end',
-    marginBottom: 8,
+    marginBottom: 6,
     position: 'relative',
-    alignSelf: 'center',
     alignItems: 'center',
-  },
-  bar: {
-    width: '40%',
-    height: 100,
+    borderWidth: 6,
     borderRadius: 20,
-    backgroundColor: '#E5E5EA',
+    borderColor: '#F4F4F4',
+  },
+  barBackground: {
+    width: 12,
+    height: 100,
+    borderRadius: 6,
+    backgroundColor: '#F4F4F4',
     position: 'absolute',
-    bottom: 0,
   },
   barFill: {
-    width: '40%',
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
+    width: 12,
+    borderRadius: 6,
+    backgroundColor: '#F4F4F4',
     position: 'absolute',
     bottom: 0,
   },
-  barLabels: {
-    alignItems: 'center',
-    marginTop: 4,
-  },
   barDay: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '400',
-    color: '#8E8E93',
-    marginBottom: 2,
+    color: '#888888',
     textAlign: 'center',
   },
   barDate: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '400',
-    color: '#8E8E93',
+    color: '#F4F4F4',
     textAlign: 'center',
   },
   totalHoursText: {
@@ -1327,65 +1425,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
-  },
-  
-  // Project Cards Styles
-  projectsList: {
-    gap: 12,
-  },
-  projectCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  projectHeader: {
-    marginBottom: 12,
-  },
-  projectName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  projectClient: {
-    fontSize: 14,
-    color: '#666',
-  },
-  projectProgress: {
-    marginBottom: 12,
-  },
-  progressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: '#666',
-  },
-  progressValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  projectStats: {
-    gap: 4,
-  },
-  projectStat: {
-    fontSize: 12,
-    color: '#666',
-  },
-  projectActions: {
-    marginTop: 12,
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'flex-end',
   },
   
   // Performance Styles

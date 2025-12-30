@@ -219,7 +219,10 @@ export default function EmployeeAllTasksScreen() {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
-    return `${hours.toString().padStart(2, '0')}hr ${minutes.toString().padStart(2, '0')}min`;
+    return {
+      hours: hours.toString().padStart(2, '0'),
+      minutes: minutes.toString().padStart(2, '0')
+    };
   };
 
   const getTimeWorked = (task: Task) => {
@@ -230,7 +233,7 @@ export default function EmployeeAllTasksScreen() {
     if (task.total_time_minutes) {
       return formatTime(task.total_time_minutes * 60 * 1000);
     }
-    return '00hr 00min';
+    return { hours: '00', minutes: '00' };
   };
 
   const getDaysRemaining = (dueDate: string) => {
@@ -284,7 +287,7 @@ export default function EmployeeAllTasksScreen() {
       {/* Custom Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Task</Text>
         <View style={styles.headerSpacer} />
@@ -516,7 +519,12 @@ export default function EmployeeAllTasksScreen() {
                   <View style={styles.bottomSection}>
                     <View style={styles.timeWorkedContainer}>
                       <Text style={styles.timeWorkedLabel}>Time worked</Text>
-                      <Text style={styles.timeWorkedValue}>{getTimeWorked(task)}</Text>
+                      <View style={styles.timeWorkedRow}>
+                        <Text style={styles.timeWorkedNumber}>{getTimeWorked(task).hours}</Text>
+                        <Text style={styles.timeWorkedUnit}>hr </Text>
+                        <Text style={styles.timeWorkedNumber}>{getTimeWorked(task).minutes}</Text>
+                        <Text style={styles.timeWorkedUnit}>min</Text>
+                      </View>
                     </View>
                     <View style={styles.actionButtonsContainer}>
                     <TouchableOpacity
@@ -546,7 +554,7 @@ export default function EmployeeAllTasksScreen() {
                       onPress={() => handleTakePhoto(task)}
                     >
                       <Ionicons name="camera-outline" size={16} color="#877ED2" />
-                      <Text style={styles.actionButtonTextSecondary}>Take Photo</Text>
+                      <Text style={styles.actionButtonTextSecondary}>Status</Text>
                     </TouchableOpacity>
                   </View>
                   </View>
@@ -645,6 +653,7 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
   },
   headerTitle: {
     fontSize: 18,
@@ -661,56 +670,56 @@ const styles = StyleSheet.create({
   },
   dateSelector: {
     backgroundColor: '#F5F5F5',
-    paddingTop: 16,
-    paddingBottom: 16,
-    height: 92,
+    paddingTop: 12,
+    height: 80,
   },
   dateSelectorContent: {
     paddingHorizontal: 16,
     alignItems: 'center',
     flexDirection: 'row',
-    height: 60,
+    height: 56,
   },
   dateItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#E5E5E5',
-    minWidth: 60,
-    width: 60,
-    height: 60,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    marginRight: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#E8E7ED',
+    minWidth: 48,
+    width: 58,
+    height: 56,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   dateItemToday: {
     backgroundColor: '#877ED2',
-    borderColor: 'transparent',
+    borderColor: '#877ED2',
   },
   dateItemSelected: {
-    backgroundColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
     borderColor: '#877ED2',
+    borderWidth: 2,
   },
   dateNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6A6D73',
+    color: '#1A1A1A',
     fontFamily: typography.families.semibold,
     marginBottom: 2,
   },
   dateNumberToday: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   dateNumberSelected: {
-    color: colors.primaryPurple,
-    fontWeight: '600',
+    color: '#877ED2',
+    fontWeight: '700',
   },
   dateDay: {
-    fontSize: 12,
-    color: '#6A6D73',
+    fontSize: 11,
+    color: '#888888',
     fontFamily: typography.families.regular,
   },
   dateDayToday: {
@@ -718,30 +727,31 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   dateDaySelected: {
-    color: colors.primaryPurple,
+    color: '#877ED2',
     fontWeight: '500',
   },
   calendarIcon: {
-    marginLeft: 8,
-    height: 60,
+    marginLeft: 4,
+    height: 52,
     justifyContent: 'center',
   },
   calendarIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
-    backgroundColor: '#E5E5E5',
+    width: 48,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   clockOverlay: {
     position: 'absolute',
     bottom: 4,
     right: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -789,7 +799,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.families.semibold,
   },
   filterContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     paddingTop: 16,
     paddingBottom: 0,
     borderBottomWidth: 1,
@@ -895,6 +905,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     overflow: 'hidden',
+    height: 220,
   },
   taskCardTop: {
     flexDirection: 'row',
@@ -924,15 +935,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingHorizontal: 12,
     fontFamily: typography.families.regular,
+    width: 250,
   },
   taskTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1A1A1A',
+    fontWeight: '500',
+    color: '#404040',
     marginBottom: 8,
     marginTop: -6,
     paddingHorizontal: 12,
-    fontFamily: typography.families.bold,
+    fontFamily: 'Inter_500Medium',
   },
   avatarContainer: {
     width: 32,
@@ -944,29 +956,29 @@ const styles = StyleSheet.create({
     right: 12,
   },
   avatar: {
-    width: 36,
-    height: 36,
+    width: 26,
+    height: 26,
     borderRadius: 18,
     backgroundColor: '#FF9500',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    top: 0,
-    left: 0,
+    top: 8,
+    left: 10,
     zIndex: 1,
     marginLeft: -30,
     marginTop: -10,
   },
   avatarPlus: {
-    width: 42,
-    height: 42,
+    width: 32,
+    height: 32,
     borderRadius: 20,
     backgroundColor: '#666666',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    bottom: 2,
-    right: 0,
+    bottom: 5,
+    right: 8,
     borderWidth: 2,
     borderColor: '#fff',
     zIndex: 2,
@@ -988,10 +1000,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginBottom: 4,
-    fontFamily: typography.families.regular,
+    fontSize: 10,
+    color: '#727272',
+    fontWeight: '400',
+    fontFamily: 'Inter_400Regular',
   },
   dateValue: {
     fontSize: 13,
@@ -1012,13 +1024,14 @@ const styles = StyleSheet.create({
     fontFamily: typography.families.semibold,
   },
   overdueBar: {
-    height: 2,
+    height: 4,
     backgroundColor: '#FF3B30',
-    borderRadius: 1,
+    borderRadius: 10,
     width: '100%',
+    marginTop: 4,
   },
   bottomSection: {
-    backgroundColor: '#F5F6FA',
+    backgroundColor: '#E8E7ED99',
     paddingHorizontal: 12,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -1029,17 +1042,28 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   timeWorkedLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
+    fontSize: 10,
+    color: '#727272',
+    fontWeight: '400',
     marginBottom: 4,
     fontFamily: typography.families.regular,
   },
-  timeWorkedValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    fontFamily: typography.families.semibold,
+  timeWorkedRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     marginTop: -4,
+  },
+  timeWorkedNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    fontFamily: typography.families.bold,
+  },
+  timeWorkedUnit: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#6B7280',
+    fontFamily: typography.families.regular,
   },
   actionButtonsContainer: {
     flexDirection: 'row',
@@ -1070,10 +1094,10 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   actionButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '400',
     color: '#FFFFFF',
-    fontFamily: typography.families.medium,
+    fontFamily: typography.families.regular,
   },
   actionButtonTextPrimary: {
     color: '#FFFFFF',

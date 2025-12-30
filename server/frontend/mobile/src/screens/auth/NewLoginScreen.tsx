@@ -9,18 +9,183 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  TextInputProps,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import { MOCK_DATA, User } from '../../data/mockData';
-import Button from '../../components/shared/Button';
-import AppLogo from '../../components/shared/AppLogo';
 import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import otpService from '../../services/otpService';
 
 type LoginMethod = 'email' | 'phone';
+
+// Floating Label Input Component
+interface FloatingLabelInputProps extends TextInputProps {
+  label: string;
+}
+
+function FloatingLabelInput({ label, style, ...rest }: FloatingLabelInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = typeof rest.value === 'string' ? rest.value.trim().length > 0 : !!rest.value;
+  const showFloatingLabel = isFocused || hasValue;
+  const basePlaceholder = (rest.placeholder as string) || label;
+  const placeholderColor = rest.placeholderTextColor ?? '#727272';
+
+  return (
+    <View style={styles.floatingContainer}>
+      {showFloatingLabel && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {label}
+        </Text>
+      )}
+      <TextInput
+        {...rest}
+        placeholder={showFloatingLabel ? '' : basePlaceholder}
+        placeholderTextColor={placeholderColor}
+        style={[
+          styles.floatingInput,
+          showFloatingLabel && styles.floatingInputWithLabel,
+          isFocused && styles.floatingInputFocused,
+          style,
+        ]}
+        onFocus={(e) => {
+          setIsFocused(true);
+          rest.onFocus && rest.onFocus(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          rest.onBlur && rest.onBlur(e);
+        }}
+      />
+    </View>
+  );
+}
+
+// Floating Label Password Input Component
+interface FloatingLabelPasswordInputProps extends TextInputProps {
+  label: string;
+  showPassword: boolean;
+  onTogglePassword: () => void;
+}
+
+function FloatingLabelPasswordInput({ 
+  label, 
+  showPassword, 
+  onTogglePassword, 
+  style, 
+  ...rest 
+}: FloatingLabelPasswordInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = typeof rest.value === 'string' ? rest.value.trim().length > 0 : !!rest.value;
+  const showFloatingLabel = isFocused || hasValue;
+  const basePlaceholder = (rest.placeholder as string) || label;
+  const placeholderColor = rest.placeholderTextColor ?? '#727272';
+
+  return (
+    <View style={styles.floatingContainer}>
+      {showFloatingLabel && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {label}
+        </Text>
+      )}
+      <View style={[
+        styles.floatingPasswordWrapper,
+        isFocused && styles.floatingInputFocused,
+      ]}>
+        <TextInput
+          {...rest}
+          placeholder={showFloatingLabel ? '' : basePlaceholder}
+          placeholderTextColor={placeholderColor}
+          secureTextEntry={!showPassword}
+          style={[
+            styles.floatingPasswordInput,
+            showFloatingLabel && styles.floatingPasswordInputWithLabel,
+            style,
+          ]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            rest.onFocus && rest.onFocus(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            rest.onBlur && rest.onBlur(e);
+          }}
+        />
+        <TouchableOpacity
+          style={styles.floatingPasswordToggle}
+          onPress={onTogglePassword}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons 
+            name={showPassword ? 'eye-off-outline' : 'eye-outline'} 
+            size={22} 
+            color="#877ED2" 
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// Floating Label Phone Input Component
+interface FloatingLabelPhoneInputProps extends TextInputProps {
+  label: string;
+}
+
+function FloatingLabelPhoneInput({ label, style, ...rest }: FloatingLabelPhoneInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = typeof rest.value === 'string' ? rest.value.trim().length > 0 : !!rest.value;
+  const showFloatingLabel = isFocused || hasValue;
+  const basePlaceholder = (rest.placeholder as string) || label;
+  const placeholderColor = rest.placeholderTextColor ?? '#727272';
+
+  return (
+    <View style={styles.floatingContainer}>
+      {showFloatingLabel && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {label}
+        </Text>
+      )}
+      <View style={[
+        styles.floatingPhoneWrapper,
+        isFocused && styles.floatingInputFocused,
+      ]}>
+        <View style={styles.floatingCountryCodeContainer}>
+          <Text style={styles.floatingFlagIcon}>🇮🇳</Text>
+          <Text style={styles.floatingCountryCode}>+91</Text>
+        </View>
+        <View style={styles.floatingPhoneDivider} />
+        <TextInput
+          {...rest}
+          placeholder={showFloatingLabel ? '' : basePlaceholder}
+          placeholderTextColor={placeholderColor}
+          style={[
+            styles.floatingPhoneInput,
+            showFloatingLabel && styles.floatingPhoneInputWithLabel,
+            style,
+          ]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            rest.onFocus && rest.onFocus(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            rest.onBlur && rest.onBlur(e);
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+// Theme colors
+const PRIMARY_PURPLE = '#7C6AC8';
+const LIGHT_PURPLE = '#877ED2';
+const BG_PURPLE = '#F0EEF8';
+const TEXT_DARK = '#333333';
+const TEXT_MUTED = '#8E8E93';
 
 export default function NewLoginScreen() {
   const { t } = useTranslation();
@@ -31,6 +196,7 @@ export default function NewLoginScreen() {
   const [loading, setLoading] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   
   // Email/Password form data
   const [emailForm, setEmailForm] = useState({
@@ -210,20 +376,23 @@ export default function NewLoginScreen() {
 
 
   return (
-    <SafeAreaWrapper backgroundColor="#ffffff">
+    <SafeAreaWrapper backgroundColor={BG_PURPLE}>
       <KeyboardAvoidingView 
         style={styles.keyboardContainer} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Header */}
+          {/* Header with Logo */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <AppLogo size="extra-large" showText={false} variant="primary" />
+              <View style={styles.logoIcon}>
+                <Ionicons name="checkmark" size={40} color="#FFFFFF" />
+              </View>
             </View>
-            <Text style={styles.appName}>{t('auth.app_name')}</Text>
-            <Text style={styles.appTagline}>{t('auth.app_tagline')}</Text>
+            <Text style={styles.appName}>Taskly</Text>
+            <Text style={styles.welcomeText}>Welcome to Taskly!</Text>
+            <Text style={styles.appTagline}>Plan tasks. Track time. Work better</Text>
           </View>
 
           {/* Login Method Toggle */}
@@ -244,7 +413,7 @@ export default function NewLoginScreen() {
                 styles.toggleButtonText,
                 loginMethod === 'email' && styles.toggleButtonTextActive
               ]}>
-                {t('auth.email')}
+                Email
               </Text>
             </TouchableOpacity>
             
@@ -264,7 +433,7 @@ export default function NewLoginScreen() {
                 styles.toggleButtonText,
                 loginMethod === 'phone' && styles.toggleButtonTextActive
               ]}>
-                {t('auth.phone')}
+                Phone
               </Text>
             </TouchableOpacity>
           </View>
@@ -273,54 +442,59 @@ export default function NewLoginScreen() {
           {loginMethod === 'email' && (
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>{t('auth.email_address')}</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="mail-outline" size={20} color="#8E8E93" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder={t('auth.enter_email')}
-                    value={emailForm.email}
-                    onChangeText={(text) => setEmailForm({ ...emailForm, email: text })}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
+                <FloatingLabelInput
+                  label="Email"
+                  placeholder="Email"
+                  placeholderTextColor='#727272'
+                  value={emailForm.email}
+                  onChangeText={(text) => setEmailForm({ ...emailForm, email: text })}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
                 {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>{t('auth.password')}</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#8E8E93" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder={t('auth.enter_password')}
-                    value={emailForm.password}
-                    onChangeText={(text) => setEmailForm({ ...emailForm, password: text })}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                  />
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                    onPress={() => setShowPassword(prev => !prev)}
-                    style={styles.passwordToggle}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={20} color="#8E8E93" />
-                  </TouchableOpacity>
-                </View>
+                <FloatingLabelPasswordInput
+                  label="Password"
+                  placeholder="Password"
+                  placeholderTextColor='#727272'
+                  value={emailForm.password}
+                  onChangeText={(text) => setEmailForm({ ...emailForm, password: text })}
+                  showPassword={showPassword}
+                  onTogglePassword={() => setShowPassword(prev => !prev)}
+                  autoCapitalize="none"
+                />
                 {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
               </View>
 
-              <View style={styles.loginButton}>
-                <Button
-                  title={loading ? t('auth.signing_in') : t('auth.sign_in')}
-                  onPress={handleEmailLogin}
-                  disabled={loading}
-                />
+              {/* Remember me & Forgot password row */}
+              <View style={styles.optionsRow}>
+                <TouchableOpacity 
+                  style={styles.rememberMeContainer}
+                  onPress={() => setRememberMe(prev => !prev)}
+                >
+                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                    {rememberMe && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                  </View>
+                  <Text style={styles.rememberMeText}>Remember me</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={() => Alert.alert('Forgot Password', 'Password reset functionality coming soon!')}>
+                  <Text style={styles.forgotPasswordText}>Forgot password</Text>
+                </TouchableOpacity>
               </View>
+
+              <TouchableOpacity
+                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                onPress={handleEmailLogin}
+                disabled={loading}
+              >
+                <Text style={styles.loginButtonText}>
+                  {loading ? 'Signing in...' : 'Login'}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -328,64 +502,43 @@ export default function NewLoginScreen() {
           {loginMethod === 'phone' && (
             <View style={styles.formContainer}>
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>{t('auth.phone_number')}</Text>
-                <View style={styles.phoneInputWrapper}>
-                  <View style={styles.countryCodeContainer}>
-                    <Text style={styles.flagIcon}>🇮🇳</Text>
-                    <Text style={styles.countryCode}>+91</Text>
-                  </View>
-                  <View style={styles.phoneInputDivider} />
-                  <TextInput
-                    style={styles.phoneTextInput}
-                    placeholder={t('auth.enter_phone')}
-                    value={phoneForm.phoneNumber}
-                    onChangeText={handlePhoneChange}
-                    keyboardType="phone-pad"
-                    maxLength={11} // 10 digits + 1 space
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                  />
-                </View>
+                <FloatingLabelPhoneInput
+                  label="Phone Number"
+                  placeholder="Phone Number"
+                  placeholderTextColor={TEXT_MUTED}
+                  value={phoneForm.phoneNumber}
+                  onChangeText={handlePhoneChange}
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
                 {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
               </View>
 
-              <View style={styles.loginButton}>
-                <Button
-                  title={otpLoading ? t('common.loading') : t('auth.send_otp')}
-                  onPress={handlePhoneLogin}
-                  disabled={otpLoading}
-                />
-              </View>
+              <TouchableOpacity
+                style={[styles.loginButton, otpLoading && styles.loginButtonDisabled]}
+                onPress={handlePhoneLogin}
+                disabled={otpLoading}
+              >
+                <Text style={styles.loginButtonText}>
+                  {otpLoading ? 'Sending...' : 'Send OTP'}
+                </Text>
+              </TouchableOpacity>
 
               <Text style={styles.otpInfo}>
-                {t('auth.otp_sent')}
+                A verification code will be sent to your phone
               </Text>
             </View>
           )}
 
-
-          {/* Register Link */}
-          <View style={styles.registerContainer}>
-            <Text style={styles.registerText}>{t('auth.already_have_account')} </Text>
+          {/* Sign Up Link */}
+          <View style={styles.signUpContainer}>
+            <Text style={styles.signUpText}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.registerLink}>{t('auth.sign_up')}</Text>
+              <Text style={styles.signUpLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Organization Onboarding Link */}
-          <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <TouchableOpacity 
-            style={styles.onboardingButton}
-            onPress={() => navigation.navigate('Onboarding')}
-          >
-            <Ionicons name="business-outline" size={20} color="#007AFF" />
-            <Text style={styles.onboardingButtonText}>Setup New Organization</Text>
-          </TouchableOpacity>
 
         </View>
       </ScrollView>
@@ -403,57 +556,167 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 24,
     justifyContent: 'center',
+  },
+  // Floating Label Input Styles
+  floatingContainer: {
+    position: 'relative',
+    paddingTop: 4,
+  },
+  floatingLabel: {
+    position: 'absolute',
+    left: 12,
+    top: 14,
+    fontSize: 14,
+    color: '#9CA3AF',
+    zIndex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 4,
+  },
+  floatingLabelActive: {
+    top: -6,
+    fontSize: 11,
+    color: '#877ED2',
+  },
+  floatingInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 16,
+    color: TEXT_DARK,
+    minHeight: 50,
+  },
+  floatingInputWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  floatingInputFocused: {
+    borderColor: '#877ED2',
+  },
+  // Floating Password Input Styles
+  floatingPasswordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    paddingRight: 12,
+    minHeight: 50,
+  },
+  floatingPasswordInput: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 16,
+    color: TEXT_DARK,
+  },
+  floatingPasswordInputWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  floatingPasswordToggle: {
+    padding: 4,
+  },
+  // Floating Phone Input Styles
+  floatingPhoneWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    overflow: 'hidden',
+    minHeight: 50,
+  },
+  floatingCountryCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#F8F9FA',
+  },
+  floatingFlagIcon: {
+    fontSize: 18,
+    marginRight: 6,
+  },
+  floatingCountryCode: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: TEXT_DARK,
+  },
+  floatingPhoneDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E5E5EA',
+  },
+  floatingPhoneInput: {
+    flex: 1,
+    fontSize: 16,
+    color: TEXT_DARK,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  floatingPhoneInputWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 70,
   },
   logoContainer: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#F0F8FF',
+  logoIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 16,
+    backgroundColor: PRIMARY_PURPLE,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#007AFF',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowColor: PRIMARY_PURPLE,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
   },
   appName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1C1C1E',
-    marginBottom: 4,
+    fontSize: 36,
+    fontWeight: '700',
+    color: PRIMARY_PURPLE,
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  welcomeText: {
+    fontSize: 25,
+    fontWeight: '600',
+    color: "#000000",
+    fontFamily: 'Inter_600SemiBold',
   },
   appTagline: {
-    fontSize: 16,
-    color: '#8E8E93',
+    fontSize: 14,
+    color: '#6256C4',
     fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   toggleContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 30,
+    marginBottom: 28,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   toggleButton: {
     flex: 1,
@@ -477,43 +740,107 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   formContainer: {
-    marginBottom: 30,
+    marginBottom: 24,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  inputLabel: {
+  textInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    fontWeight: '500',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    color: TEXT_DARK,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  inputWrapper: {
+  passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E5EA',
+    paddingRight: 12,
   },
-  inputIcon: {
-    marginRight: 12,
-  },
-  textInput: {
+  passwordInput: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    color: '#1C1C1E',
+    color: TEXT_DARK,
   },
   passwordToggle: {
-    marginLeft: 8,
+    padding: 4,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    marginTop: 4,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: LIGHT_PURPLE,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: LIGHT_PURPLE,
+    borderColor: LIGHT_PURPLE,
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: '#8F8F8F',
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: '#877ED2',
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
+  },
+  loginButton: {
+    backgroundColor: '#877ED2',
+    borderRadius: 8,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#877ED2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+    marginTop: 48,
+    height: 50,
+    width: 371,
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+    fontFamily: 'Inter_500Medium',
   },
   phoneInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E5EA',
     overflow: 'hidden',
@@ -521,18 +848,18 @@ const styles = StyleSheet.create({
   countryCodeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     backgroundColor: '#F8F9FA',
   },
   flagIcon: {
-    fontSize: 20,
-    marginRight: 8,
+    fontSize: 18,
+    marginRight: 6,
   },
   countryCode: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1C1C1E',
+    color: TEXT_DARK,
   },
   phoneInputDivider: {
     width: 1,
@@ -542,71 +869,36 @@ const styles = StyleSheet.create({
   phoneTextInput: {
     flex: 1,
     fontSize: 16,
-    color: '#1C1C1E',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 48,
-    textAlign: 'left',
+    color: TEXT_DARK,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   errorText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#FF3B30',
-    marginTop: 4,
-  },
-  loginButton: {
-    marginTop: 10,
+    marginTop: 6,
+    marginLeft: 4,
   },
   otpInfo: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: TEXT_MUTED,
     textAlign: 'center',
     marginTop: 16,
   },
-  registerContainer: {
+  signUpContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 20,
   },
-  registerText: {
-    fontSize: 16,
-    color: '#8E8E93',
+  signUpText: {
+    fontSize: 15,
+    color: TEXT_MUTED,
   },
-  registerLink: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E5EA',
-  },
-  dividerText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginHorizontal: 16,
-    fontWeight: '500',
-  },
-  onboardingButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0F8FF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  onboardingButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500',
-    marginLeft: 8,
+  signUpLink: {
+    fontSize: 15,
+    color: LIGHT_PURPLE,
+    fontWeight: '600',
   },
 });

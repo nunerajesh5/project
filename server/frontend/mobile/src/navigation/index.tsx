@@ -405,7 +405,7 @@ export default function RootNavigator() {
         <Stack.Screen name="TaskView" component={TaskViewScreen} options={{ headerShown: false }} />
         <Stack.Screen name="AddClient" component={AddClientScreen} options={{ headerShown: true, title: 'Add Client' }} />
         <Stack.Screen name="AddProject" component={AddProjectScreen} options={{ headerShown: true, title: 'Create Project' }} />
-        <Stack.Screen name="AddEmployee" component={AddEmployeeScreen} options={{ headerShown: true, title: 'Add Employee' }} />
+        <Stack.Screen name="AddEmployee" component={AddEmployeeScreen} options={{ headerShown: false }} />
         {/* Onboarding routes */}
         <Stack.Screen name="RegisterOrganization" component={RegisterOrganizationScreen} options={{ headerShown: false }} />
         <Stack.Screen name="OrganizationQRCode" component={OrganizationQRCodeScreen} options={{ headerShown: false }} />

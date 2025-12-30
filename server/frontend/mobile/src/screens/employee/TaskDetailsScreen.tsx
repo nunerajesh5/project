@@ -270,6 +270,9 @@ interface Photo {
   // Attachments data
   const [attachments, setAttachments] = useState<any[]>([]);
 
+  // Task description expanded state
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(true);
+
   // Task details state
   const [taskDetails, setTaskDetails] = useState<TaskDetails>({
     id: taskId,
@@ -1920,13 +1923,17 @@ interface Photo {
           
           <View style={styles.taskTitleRow}>
             <Text style={styles.taskTitle}>{taskDetails.title}</Text>
-            <TouchableOpacity>
-              <Ionicons name="chevron-up" size={20} color="#8E8E93" />
+            <TouchableOpacity onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}>
+              <Ionicons name={isDescriptionExpanded ? "chevron-up" : "chevron-down"} size={20} color="#8E8E93" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.taskDescription}>
-            {taskDetails.description || 'Full-height wardrobe for the master bedroom with hanging space, shelves, drawers and loft storage. Spec details is added. Contact Akash for light fittings.'}
-          </Text>
+          <View style={styles.taskDescriptionContainer}>
+            {isDescriptionExpanded && (
+              <Text style={styles.taskDescription}>
+                {taskDetails.description || 'Full-height wardrobe for the master bedroom with hanging space, shelves, drawers and loft storage. Spec details is added. Contact Akash for light fittings.'}
+              </Text>
+            )}
+          </View>
           
           <View style={styles.taskDatesRow}>
             <View style={styles.dateColumn}>
@@ -2012,16 +2019,10 @@ interface Photo {
             {teamMembersData.length > 0 && (
               <View style={styles.teamManagerRow}>
                 <View style={styles.teamManagerInfo}>
-                  <Text style={styles.teamManagerLabel}>Manager</Text>
-                  <Text style={styles.teamManagerName}>
-                    {teamMembersData[0]?.name || 'N/A'}
-                  </Text>
+                  <Text style={styles.teamManagerLabel}>Manager  </Text>
+                  <Text style={styles.teamManagerName}>{teamMembersData[0]?.name || 'N/A'}</Text>
                 </View>
-                <Text style={styles.teamManagerTime}>
-                  {teamMembersData[0]?.timeToday 
-                    ? formatTime(teamMembersData[0].timeToday) 
-                    : '0:00:00'}
-                </Text>
+                <Text style={styles.teamManagerTimeLabel}>Today</Text>
               </View>
             )}
 
@@ -2042,11 +2043,10 @@ interface Photo {
                   const formatTimeForDisplay = (seconds: number) => {
                     const hours = Math.floor(seconds / 3600);
                     const minutes = Math.floor((seconds % 3600) / 60);
-                    if (hours > 0) {
-                      return `${hours}hr ${minutes > 0 ? `${minutes}min` : ''}`;
-                    }
-                    return `${minutes}min`;
+                    return { hours, minutes };
                   };
+
+                  const timeDisplay = formatTimeForDisplay(member.taskLoggedTime);
 
                   return (
                     <View key={member.id} style={styles.teamMemberRow}>
@@ -2057,9 +2057,16 @@ interface Photo {
                         <Text style={styles.teamMemberName}>{member.name}</Text>
                         <Text style={styles.teamMemberRole}>{member.role}</Text>
                       </View>
-                      <Text style={styles.teamMemberTime}>
-                        {formatTimeForDisplay(member.taskLoggedTime)}
-                      </Text>
+                      <View style={styles.teamMemberTimeContainer}>
+                        <Text style={styles.teamMemberTimeNumber}>
+                          {String(timeDisplay.hours).padStart(2, '0')}
+                        </Text>
+                        <Text style={styles.teamMemberTimeUnit}>hr </Text>
+                        <Text style={styles.teamMemberTimeNumber}>
+                          {String(timeDisplay.minutes).padStart(2, '0')}
+                        </Text>
+                        <Text style={styles.teamMemberTimeUnit}>min</Text>
+                      </View>
                     </View>
                   );
                 })
@@ -2952,11 +2959,11 @@ interface Photo {
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="chevron-back" size={24} color="#000000" />
+                <Ionicons name="chevron-back" size={20} color="#000000" />
               </TouchableOpacity>
               <Text style={styles.productivityReportTitle}>Productivity Report</Text>
               <TouchableOpacity style={styles.productivityReportMenuButton}>
-                <Ionicons name="ellipsis-vertical" size={24} color="#000000" />
+                <Ionicons name="ellipsis-vertical" size={20} color="#000000" />
               </TouchableOpacity>
             </View>
 
@@ -3012,63 +3019,82 @@ interface Photo {
                     {/* Second Row: Week/Month Navigation - Full Width */}
                     <View style={styles.productivityWeekNav}>
                       <TouchableOpacity onPress={() => navigateWeek('prev')} style={styles.productivityNavButton}>
-                        <Ionicons name="chevron-back" size={20} color="#000000" />
+                        <Ionicons name="chevron-back" size={20} color="#727272" />
                       </TouchableOpacity>
                       <View style={styles.productivityWeekNavText}>
                         <Text style={styles.productivityWeekLabelCenter}>{productivityView === 'week' ? 'Week' : 'Month'}</Text>
                         <Text style={styles.productivityWeekRange}>{getProductivityWeekRange()}</Text>
                       </View>
                       <TouchableOpacity onPress={() => navigateWeek('next')} style={styles.productivityNavButton}>
-                        <Ionicons name="chevron-forward" size={20} color="#000000" />
+                        <Ionicons name="chevron-forward" size={20} color="#727272" />
                       </TouchableOpacity>
                     </View>
                   </View>
 
                   {/* Bar Chart */}
                   {chartView === 'bar' && (
-                    <ScrollView 
-                      horizontal 
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.productivityChartScrollContainer}
-                      contentContainerStyle={[
-                        productivityView === 'week' ? styles.productivityChartScrollContentWeek : styles.productivityChartScrollContent,
-                        productivityView === 'week' && styles.productivityChartScrollContentCentered
-                      ]}
-                      scrollEnabled={productivityView !== 'week'}
-                    >
-                      <View style={[styles.productivityChartContainer, productivityView === 'week' && { width: '100%' }]}>
-                        <View style={[styles.productivityChart, productivityView === 'week' && { justifyContent: 'space-between', width: '100%' }]}>
-                          {productivityData.map((item, index) => {
-                            const barHeightPercent = maxHours > 0 && item.hours > 0 ? (item.hours / maxHours) * 100 : 0;
-                            // Calculate actual pixel height (100px is the full bar height)
-                            const fillHeight = item.hours > 0 ? (barHeightPercent / 100) * 100 : 4;
-                            const fillColor = item.hours > 0 ? '#877ED2' : '#E5E5EA';
-                            
-                            return (
-                              <View key={index} style={styles.productivityBarColumn}>
-                                <Text style={[styles.productivityBarValue, item.hours === 0 && styles.productivityBarValueZero]}>{item.hours}</Text>
-                                <View style={styles.productivityBarWrapper}>
-                                  <View style={styles.productivityBarBackground} />
-                                  <View 
-                                    style={[
-                                      styles.productivityBarFill, 
-                                      { 
-                                        height: fillHeight,
-                                        backgroundColor: fillColor
-                                      }
-                                    ]} 
-                                  />
-                                </View>
-                                <View style={styles.productivityBarLabels}>
-                                  <Text style={styles.productivityBarDay}>{item.day}</Text>
-                                  <Text style={styles.productivityBarDate}>{item.date}</Text>
-                                </View>
-                              </View>
-                            );
-                          })}
-                        </View>
+                    <View style={styles.productivityChartArea}>
+                      {/* Horizontal Grid Lines - 9 lines aligned with bar height (200px) */}
+                      <View style={styles.productivityGridLines}>
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
+                        <View style={styles.productivityGridLine} />
                       </View>
-                    </ScrollView>
+                      
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.productivityChartScrollContainer}
+                        contentContainerStyle={[
+                          productivityView === 'week' ? styles.productivityChartScrollContentWeek : styles.productivityChartScrollContent,
+                          productivityView === 'week' && styles.productivityChartScrollContentCentered
+                        ]}
+                        scrollEnabled={productivityView !== 'week'}
+                      >
+                        <View style={[styles.productivityChartContainer, productivityView === 'week' && { width: '100%' }]}>
+                          <View style={[styles.productivityChart, productivityView === 'week' && { justifyContent: 'space-between', width: '100%' }]}>
+                            {productivityData.map((item, index) => {
+                              const barHeightPercent = maxHours > 0 && item.hours > 0 ? (item.hours / maxHours) * 100 : 0;
+                              // Calculate actual pixel height (200px is the full bar height)
+                              const fillHeight = item.hours > 0 ? (barHeightPercent / 100) * 200 : 4;
+                              const fillColor = item.hours > 0 ? '#877ED2' : '#E5E5EA';
+                              
+                              return (
+                                <View key={index} style={styles.productivityBarColumn}>
+                                  {/* Hour Value Badge */}
+                                  <View style={[styles.productivityBarValueBadge, item.hours === 0 && styles.productivityBarValueBadgeZero]}>
+                                    <Text style={[styles.productivityBarValue, item.hours === 0 && styles.productivityBarValueZero]}>{item.hours}</Text>
+                                  </View>
+                                  <View style={styles.productivityBarWrapper}>
+                                    {item.hours > 0 && (
+                                      <View 
+                                        style={[
+                                          styles.productivityBarFill, 
+                                          { 
+                                            height: fillHeight,
+                                            backgroundColor: '#877ED2'
+                                          }
+                                        ]} 
+                                      />
+                                    )}
+                                  </View>
+                                  <View style={styles.productivityBarLabels}>
+                                    <Text style={styles.productivityBarDay}>{item.day}</Text>
+                                    <Text style={styles.productivityBarDate}>{item.date}</Text>
+                                  </View>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      </ScrollView>
+                    </View>
                   )}
 
                   {/* List View */}
@@ -3110,22 +3136,24 @@ interface Photo {
                       <Text style={styles.productivitySummaryLabel}>Time worked</Text>
                       <View style={styles.productivitySummaryHours}>
                         <Text style={styles.productivitySummaryHoursNumber}>
-                          {Math.round(productivityData.reduce((sum, d) => sum + d.hours, 0) * 10) / 10}
+                          {Math.round(productivityData.reduce((sum, d) => sum + d.hours, 0))}
                         </Text>
                         <Text style={styles.productivitySummaryHoursUnit}>
-                          {' hr / '}
+                          hr
+                        </Text>
+                        <Text style={styles.productivitySummaryHoursSeparator}>
+                          {' / '}
+                        </Text>
+                        <Text style={styles.productivitySummaryHoursNumber}>
                           {productivityData.filter(d => d.hours > 0).length}
-                          {productivityView === 'week' ? ' d' : ' days'}
+                        </Text>
+                        <Text style={styles.productivitySummaryHoursUnit}>
+                          d
                         </Text>
                       </View>
-                      <Text style={styles.productivitySummarySubtext}>
-                        Avg: {productivityData.filter(d => d.hours > 0).length > 0 
-                          ? (Math.round((productivityData.reduce((sum, d) => sum + d.hours, 0) / productivityData.filter(d => d.hours > 0).length) * 10) / 10)
-                          : 0} hr/day
-                      </Text>
                     </View>
                     <View style={styles.productivitySummaryRight}>
-                      <Text style={styles.productivitySummaryLabel}>Entries</Text>
+                      <Text style={styles.productivitySummaryLabel}>Task</Text>
                       <Text style={styles.productivitySummaryTaskNumber}>
                         {timeEntries.filter(entry => {
                           if (productivityView === 'week') {
@@ -3145,7 +3173,6 @@ interface Photo {
                           }
                         }).length}
                       </Text>
-                      <Text style={styles.productivitySummarySubtext}>Time entries</Text>
                     </View>
                   </View>
                 </View>
@@ -3338,6 +3365,9 @@ const styles = StyleSheet.create({
     color: '#404040',
     marginRight: 8,
   },
+  taskDescriptionContainer: {
+    height: 70,
+  },
   taskDescription: {
     fontSize: 12,
     color: '#8F8F8F',
@@ -3457,7 +3487,6 @@ const styles = StyleSheet.create({
   timerTimeLabel: {
     fontSize: 10,
     color: '#727272',
-    marginBottom: 4,
     fontFamily: typography.families.regular,
     fontWeight: '400',
   },
@@ -3535,11 +3564,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
+    paddingBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    height: 450,
   },
   productivityCardHeader: {
     marginBottom: 16,
@@ -3548,7 +3579,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   productivityHeaderLeft: {
     alignItems: 'flex-start',
@@ -3556,31 +3587,39 @@ const styles = StyleSheet.create({
   productivityViewToggle: {
     flexDirection: 'row',
     backgroundColor: '#F5F6FA',
-    borderRadius: 8,
-    padding: 2,
+    borderRadius: 30,
     marginBottom: 4,
+    height: 24,
+    width: 200,
+    textAlign: 'center',
   },
   productivityWeekLabelBelow: {
     fontSize: 12,
     color: '#8E8E93',
-    marginTop: 4,
+    // marginTop: 4,
   },
   productivityToggleButton: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 100,
   },
   productivityToggleButtonActive: {
     backgroundColor: '#877ED2',
+    width: 100,
   },
   productivityToggleText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#8E8E93',
+    fontFamily: typography.families.regular,
   },
   productivityToggleTextActive: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
+    fontFamily: typography.families.regular,
   },
   productivityWeekNav: {
     flexDirection: 'row',
@@ -3612,30 +3651,58 @@ const styles = StyleSheet.create({
   },
   productivityChartToggle: {
     flexDirection: 'row',
-    backgroundColor: '#F5F6FA',
-    borderRadius: 8,
-    padding: 2,
+    backgroundColor: '#F1F1F4',
+    height: 24,
+    borderRadius: 30,
     gap: 2,
   },
   productivityChartToggleButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
+    width: 40,
+    height: 24,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   productivityChartToggleButtonActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#6F67CC',
+    borderRadius: 30,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  productivityChartArea: {
+    position: 'relative',
+    marginBottom: 16,
+    height: 270,
+    overflow: 'visible',
+    paddingBottom: 20,
+  },
+  productivityGridLines: {
+    position: 'absolute',
+    top: 36, // Positioned to align with top of bars (badge height ~28px + marginBottom 8px = 36px)
+    left: 0,
+    right: 0,
+    height: 200, // Same as bar height (productivityBarWrapper height)
+    justifyContent: 'space-between',
+    zIndex: 0,
+  },
+  productivityGridLine: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+    width: '100%',
   },
   productivityChartContainer: {
-    marginBottom: 16,
+    marginBottom: 0,
+    overflow: 'visible',
   },
   productivityChart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: 140,
+    height: 340,
     width: '100%',
+    overflow: 'visible',
+    paddingBottom: 60,
   },
   productivityBarColumn: {
     flex: 1,
@@ -3643,95 +3710,109 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingHorizontal: 0,
     minWidth: 0,
+    overflow: 'visible',
+  },
+  productivityBarValueBadge: {
+    backgroundColor: '#E8E7ED',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+    minWidth: 34,
+    alignItems: 'center',
+  },
+  productivityBarValueBadgeZero: {
+    backgroundColor: '#F5F5F5',
   },
   productivityBarValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#727272',
     textAlign: 'center',
   },
   productivityBarValueZero: {
     color: '#8E8E93',
   },
   productivityBarWrapper: {
-    width: '100%',
-    height: 100,
-    justifyContent: 'flex-end',
-    marginBottom: 8,
-    position: 'relative',
+    width: 14,
+    height: 200,
+    marginBottom: 10,
     alignSelf: 'center',
-    alignItems: 'center',
+    borderRadius: 7,
+    backgroundColor: '#E8E7ED',
+    justifyContent: 'flex-end',
   },
   productivityBarBackground: {
-    width: '60%',
-    height: 100,
-    borderRadius: 4,
-    backgroundColor: '#E5E5EA',
-    position: 'absolute',
-    bottom: 0,
+    width: 14,
+    height: 200,
+    borderRadius: 7,
+    backgroundColor: '#E8E7ED',
   },
   productivityBarFill: {
-    width: '60%',
-    borderRadius: 4,
-    position: 'absolute',
-    bottom: 0,
-    alignSelf: 'center',
+    width: '100%',
+    borderRadius: 7,
   },
   productivityBarLabels: {
     alignItems: 'center',
     marginTop: 4,
   },
   productivityBarDay: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '400',
-    color: '#8E8E93',
-    marginBottom: 2,
+    fontFamily: typography.families.regular,
+    color: '#6F67CC',
     textAlign: 'center',
   },
   productivityBarDate: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '400',
-    color: '#8E8E93',
+    fontFamily: typography.families.regular,
+    color: '#6F67CC',
     textAlign: 'center',
   },
   productivitySummary: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F5F6FA',
+    justifyContent: 'flex-start',
+    paddingTop: 10,
+    gap: 40,
   },
   productivitySummaryLeft: {
-    flex: 1,
   },
   productivitySummaryRight: {
-    flex: 1,
-    alignItems: 'flex-end',
   },
   productivitySummaryLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4,
+    fontSize: 10,
+    color: '#727272',
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
   },
   productivitySummaryHours: {
     flexDirection: 'row',
     alignItems: 'baseline',
   },
   productivitySummaryHoursNumber: {
-    fontSize: 32,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#000000',
+    fontFamily: typography.families.bold,
+    color: '#404040',
   },
   productivitySummaryHoursUnit: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: 10,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#727272',
     marginLeft: 2,
   },
+  productivitySummaryHoursSeparator: {
+    fontSize: 14,
+    color: '#8E8E93',
+  },
   productivitySummaryTaskNumber: {
-    fontSize: 32,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#000000',
+    fontFamily: typography.families.bold,
+    color: '#404040',
   },
   productivitySummarySubtext: {
     fontSize: 12,
@@ -3739,7 +3820,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   productivityChartScrollContainer: {
-    maxHeight: 200,
+    overflow: 'visible',
   },
   productivityChartScrollContent: {
     paddingHorizontal: 8,
@@ -3765,8 +3846,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F6FA',
   },
   productivityListItemLeft: {
     flex: 1,
@@ -3918,25 +3997,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 16,
     marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F5F6FA',
   },
   teamManagerInfo: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
   },
   teamManagerLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4,
+    fontSize: 10,
+    color: '#727272',
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
   },
   teamManagerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: typography.families.medium,
+    color: '#404040',
   },
-  teamManagerTime: {
-    fontSize: 14,
-    color: '#8E8E93',
+  teamManagerTimeLabel: {
+    fontSize: 10,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#727272',
   },
   teamMembersList: {
     gap: 16,
@@ -3963,19 +4047,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   teamMemberName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 4,
-  },
-  teamMemberRole: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  teamMemberTime: {
     fontSize: 14,
     fontWeight: '500',
+    fontFamily: typography.families.medium,
+    color: '#404040',
+    marginBottom: 2,
+  },
+  teamMemberRole: {
+    fontSize: 10,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#727272',
+  },
+  teamMemberTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  teamMemberTimeNumber: {
+    fontSize: 14,
+    fontWeight: '500',
+    fontFamily: typography.families.medium,
     color: '#000000',
+  },
+  teamMemberTimeUnit: {
+    fontSize: 10,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#8E8E93',
   },
   loadingContainer: {
     flex: 1,
@@ -4523,7 +4621,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   productivityReportScrollContent: {
-    padding: 16,
+    padding: 4,
     paddingBottom: 20,
   },
   productivityReportHeader: {
@@ -4533,7 +4631,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
     zIndex: 1000,
     elevation: 5,
   },
@@ -4548,10 +4645,10 @@ const styles = StyleSheet.create({
   productivityReportTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '500',
+    fontFamily: typography.families.medium,
     color: '#000000',
-    textAlign: 'center',
-    marginLeft: -40,
+    textAlign: 'left',
   },
   productivityReportMenuButton: {
     width: 40,
@@ -4561,7 +4658,7 @@ const styles = StyleSheet.create({
   },
   productivityReportCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 10,
     margin: 16,
     padding: 20,
     shadowColor: '#000',
@@ -4582,15 +4679,15 @@ const styles = StyleSheet.create({
   },
   productivityReportToggleButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
     borderRadius: 30,
   },
   productivityReportToggleButtonActive: {
     backgroundColor: '#877ED2',
   },
   productivityReportToggleText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '400',
+    fontFamily: typography.families.regular,
     color: '#8E8E93',
   },
   productivityReportToggleTextActive: {
@@ -4604,8 +4701,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   productivityReportWeekLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
+    fontSize: 10,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#727272',
     marginRight: 8,
   },
   productivityReportNavButton: {
@@ -4613,9 +4712,10 @@ const styles = StyleSheet.create({
   },
   productivityReportWeekRange: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000000',
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: typography.families.medium,
+    color: '#404040',
   },
   productivityReportChartToggle: {
     flexDirection: 'row',
