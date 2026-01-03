@@ -13,7 +13,7 @@ import VoiceToTextButton from '../../components/shared/VoiceToTextButton';
 
 // Admin Project Tasks Screen - Updated
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Employee {
   id: string;
@@ -260,12 +260,13 @@ export default function ProjectTasksScreen() {
     setRefreshing(false);
   };
 
-  const getStatusColor = (status: TaskStatus) => {
+  const getStatusColor = (status: TaskStatus | string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#007AFF';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
@@ -366,13 +367,11 @@ export default function ProjectTasksScreen() {
 
   // Map UI-friendly labels to backend-supported TaskStatus values
   const statusOptions: { value: TaskStatus; label: string; icon: string; color: string }[] = [
-    { value: 'in_progress', label: translateStatus('in_progress', t).toUpperCase(), icon: '⟳', color: '#007AFF' },
-    { value: 'todo',        label: translateStatus('todo', t).toUpperCase(),     icon: '○', color: '#8E8E93' },
-    { value: 'done',        label: translateStatus('completed', t).toUpperCase(),    icon: '●', color: '#9333EA' },
-    { value: 'overdue',     label: translateStatus('overdue', t).toUpperCase(),      icon: '●', color: '#F59E0B' },
-    { value: 'todo',        label: translateStatus('pending', t).toUpperCase(), icon: '●', color: '#FCD34D' },
-    { value: 'todo',        label: translateStatus('on_hold', t).toUpperCase(),      icon: '●', color: '#78716C' },
-    { value: 'overdue',     label: translateStatus('cancelled', t).toUpperCase(),    icon: '●', color: '#6B7280' },
+    { value: 'To Do', label: t('status.todo', 'TO DO').toUpperCase(), icon: '○', color: '#8E8E93' },
+    { value: 'Active', label: t('status.active', 'ACTIVE').toUpperCase(), icon: '⟳', color: '#877ED2' },
+    { value: 'Completed', label: t('status.completed', 'COMPLETED').toUpperCase(), icon: '●', color: '#34C759' },
+    { value: 'Cancelled', label: t('status.cancelled', 'CANCELLED').toUpperCase(), icon: '●', color: '#FF3B30' },
+    { value: 'On Hold', label: t('status.on_hold', 'ON HOLD').toUpperCase(), icon: '●', color: '#FF9500' },
   ];
 
   const filteredStatusOptions = statusOptions.filter(option =>

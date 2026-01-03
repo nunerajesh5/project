@@ -28,7 +28,7 @@ export default function ProjectsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'in_progress' | 'new' | 'completed' | 'all'>('in_progress');
+  const [selectedFilter, setSelectedFilter] = useState<'active' | 'todo' | 'completed' | 'cancelled' | 'on_hold' | 'all'>('active');
 
   const loadProjects = async () => {
     try {
@@ -60,13 +60,17 @@ export default function ProjectsScreen() {
   };
 
   const getStatusCounts = () => {
-    const inProgress = projects.filter(p => p.status === 'active' || p.status === 'in_progress').length;
-    const newProjects = projects.filter(p => p.status === 'pending' || p.status === 'todo').length;
-    const completed = projects.filter(p => p.status === 'completed').length;
+    const active = projects.filter(p => p.status === 'Active').length;
+    const todo = projects.filter(p => p.status === 'To Do').length;
+    const completed = projects.filter(p => p.status === 'Completed').length;
+    const cancelled = projects.filter(p => p.status === 'Cancelled').length;
+    const onHold = projects.filter(p => p.status === 'On Hold').length;
     return {
-      in_progress: inProgress,
-      new: newProjects,
+      active,
+      todo,
       completed,
+      cancelled,
+      on_hold: onHold,
       all: projects.length,
     };
   };
@@ -74,12 +78,16 @@ export default function ProjectsScreen() {
   const statusCounts = getStatusCounts();
 
   const filteredProjects = projects.filter(project => {
-    if (selectedFilter === 'in_progress') {
-      if (project.status !== 'active' && project.status !== 'in_progress') return false;
-    } else if (selectedFilter === 'new') {
-      if (project.status !== 'pending' && project.status !== 'todo') return false;
+    if (selectedFilter === 'active') {
+      if (project.status !== 'Active') return false;
+    } else if (selectedFilter === 'todo') {
+      if (project.status !== 'To Do') return false;
     } else if (selectedFilter === 'completed') {
-      if (project.status !== 'completed') return false;
+      if (project.status !== 'Completed') return false;
+    } else if (selectedFilter === 'cancelled') {
+      if (project.status !== 'Cancelled') return false;
+    } else if (selectedFilter === 'on_hold') {
+      if (project.status !== 'On Hold') return false;
     }
 
     if (search) {
@@ -96,17 +104,16 @@ export default function ProjectsScreen() {
   });
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-      case 'in_progress':
+    switch (status) {
+      case 'Active':
         return '#877ED2';
-      case 'completed':
+      case 'Completed':
         return '#34C759';
-      case 'pending':
-      case 'todo':
-      case 'on_hold':
+      case 'To Do':
         return '#FF9500';
-      case 'cancelled':
+      case 'On Hold':
+        return '#FF9500';
+      case 'Cancelled':
         return '#FF3B30';
       default:
         return '#8E8E93';
@@ -114,18 +121,16 @@ export default function ProjectsScreen() {
   };
 
   const getStatusText = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
+    switch (status) {
+      case 'Active':
+        return 'Active';
+      case 'Completed':
         return 'Completed';
-      case 'pending':
-      case 'todo':
-        return 'New';
-      case 'on_hold':
+      case 'To Do':
+        return 'To Do';
+      case 'On Hold':
         return 'On Hold';
-      case 'cancelled':
+      case 'Cancelled':
         return 'Cancelled';
       default:
         return status || 'Unknown';
@@ -190,19 +195,19 @@ export default function ProjectsScreen() {
             contentContainerStyle={styles.filterContent}
           >
             <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'in_progress' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('in_progress')}
+              style={[styles.filterTab, selectedFilter === 'active' && styles.filterTabActive]}
+              onPress={() => setSelectedFilter('active')}
             >
-              <Text style={[styles.filterText, selectedFilter === 'in_progress' && styles.filterTextActive]}>
-                In Progress ({statusCounts.in_progress})
+              <Text style={[styles.filterText, selectedFilter === 'active' && styles.filterTextActive]}>
+                Active ({statusCounts.active})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'new' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('new')}
+              style={[styles.filterTab, selectedFilter === 'todo' && styles.filterTabActive]}
+              onPress={() => setSelectedFilter('todo')}
             >
-              <Text style={[styles.filterText, selectedFilter === 'new' && styles.filterTextActive]}>
-                New ({statusCounts.new})
+              <Text style={[styles.filterText, selectedFilter === 'todo' && styles.filterTextActive]}>
+                To Do ({statusCounts.todo})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -211,6 +216,22 @@ export default function ProjectsScreen() {
             >
               <Text style={[styles.filterText, selectedFilter === 'completed' && styles.filterTextActive]}>
                 Completed ({statusCounts.completed})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterTab, selectedFilter === 'cancelled' && styles.filterTabActive]}
+              onPress={() => setSelectedFilter('cancelled')}
+            >
+              <Text style={[styles.filterText, selectedFilter === 'cancelled' && styles.filterTextActive]}>
+                Cancelled ({statusCounts.cancelled})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterTab, selectedFilter === 'on_hold' && styles.filterTabActive]}
+              onPress={() => setSelectedFilter('on_hold')}
+            >
+              <Text style={[styles.filterText, selectedFilter === 'on_hold' && styles.filterTextActive]}>
+                On Hold ({statusCounts.on_hold})
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -314,7 +335,7 @@ export default function ProjectsScreen() {
                           </View>
                           <View style={styles.overdueBar} />
                         </>
-                      ) : project.status === 'active' || project.status === 'in_progress' ? (
+                      ) : project.status === 'Active' ? (
                         <>
                           <View style={styles.overdueRow}>
                             <Text style={styles.dateLabel}>In Progress</Text>

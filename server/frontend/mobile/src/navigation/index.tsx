@@ -44,7 +44,8 @@ import ManagerDashboardScreen from '../screens/manager/ManagerDashboardScreen';
 import ManagerTimeTrackingScreen from '../screens/manager/ManagerTimeTrackingScreen';
 import ManagerProjectsScreen from '../screens/manager/ProjectsScreen';
 import ManagerProjectDetailsScreen from '../screens/manager/ManagerProjectDetailsScreen';
-import EmployeeDetailScreen from '../screens/manager/EmployeeDetailScreen';
+import ManagerEmployeeDetailScreen from '../screens/manager/EmployeeDetailScreen';
+import AdminEmployeeDetailScreen from '../screens/admin/EmployeeDetailScreen';
 import EmployeeTimeTrackingScreen from '../screens/manager/EmployeeTimeTrackingScreen';
 import EmployeeProjectTimeScreen from '../screens/manager/EmployeeProjectTimeScreen';
 import ManagerEmployeesScreen from '../screens/manager/EmployeesScreen';
@@ -71,6 +72,100 @@ import AllAttachmentsScreen from '../screens/employee/AllAttachmentsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+const EmployeesTab = createBottomTabNavigator();
+
+// Admin Employees Tab Navigator with 4 tabs: Dashboard, Add, Expense, Notifications
+function AdminEmployeesTabNavigator() {
+  return (
+    <EmployeesTab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: '#877ED2',
+        tabBarInactiveTintColor: '#666',
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '400',
+          marginTop: 2,
+        },
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#e1e5e9',
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 60,
+        },
+        headerShown: false,
+      }}
+    >
+      <EmployeesTab.Screen
+        name="Dashboard"
+        component={AdminEmployeesScreen}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+          },
+        }}
+        options={{
+          tabBarLabel: 'Dashboard',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              name={focused ? 'people' : 'people-outline'}
+              size={size || 24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <EmployeesTab.Screen
+        name="Add"
+        component={AddEmployeeScreen}
+        options={{
+          tabBarLabel: 'Add',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              name={focused ? 'person-add' : 'person-add-outline'}
+              size={size || 24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <EmployeesTab.Screen
+        name="Expense"
+        component={AdminTimeTrackingScreen}
+        options={{
+          tabBarLabel: 'Expense',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              name={focused ? 'stats-chart' : 'stats-chart-outline'}
+              size={size || 24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <EmployeesTab.Screen
+        name="Notifications"
+        component={AdminPermissionsScreen}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+          },
+        }}
+        options={{
+          tabBarLabel: 'Notifications',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons
+              name={focused ? 'notifications' : 'notifications-outline'}
+              size={size || 24}
+              color={color}
+            />
+          ),
+        }}
+      />
+    </EmployeesTab.Navigator>
+  );
+}
 
 function AppTabs() {
   const { user, loading } = useContext(AuthContext);
@@ -245,7 +340,7 @@ function AppTabs() {
         <>
           <Tab.Screen 
             name="Employees" 
-            component={isAdmin ? AdminEmployeesScreen : ManagerEmployeesScreen}
+            component={isAdmin ? AdminEmployeesTabNavigator : ManagerEmployeesScreen}
             options={{
               tabBarIcon: ({ color, focused, size }) => (
                 <Ionicons 
@@ -254,6 +349,7 @@ function AppTabs() {
                   color={color} 
                 />
               ),
+              tabBarStyle: isAdmin ? { display: 'none' } : undefined,
             }}
           />
           {isAdmin && (
@@ -358,6 +454,18 @@ function ProjectTasksScreenWrapper(props: any) {
   }
 }
 
+// Wrapper for EmployeeDetailScreen to dynamically select based on role
+function EmployeeDetailScreenWrapper(props: any) {
+  const { user } = useContext(AuthContext);
+  const userRole = user?.role || 'employee';
+  
+  if (userRole === 'admin') {
+    return <AdminEmployeeDetailScreen {...props} />;
+  } else {
+    return <ManagerEmployeeDetailScreen {...props} />;
+  }
+}
+
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -390,7 +498,7 @@ export default function RootNavigator() {
         <Stack.Screen name="EmployeeProjects" component={EmployeeProjectsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="EmployeeProjectTime" component={EmployeeProjectTimeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="ClientProjects" component={ClientProjectsScreenWrapper} options={{ headerShown: true, title: 'Client Projects' }} />
-        <Stack.Screen name="EmployeeDetail" component={EmployeeDetailScreen} options={{ headerShown: true, title: 'Employee Details' }} />
+        <Stack.Screen name="EmployeeDetail" component={EmployeeDetailScreenWrapper} options={{ headerShown: true, title: 'Employee Details' }} />
         <Stack.Screen name="TimeEntry" component={TimeEntryScreen} options={{ headerShown: true, title: 'Manual Time Entry' }} />
         <Stack.Screen name="Timesheet" component={TimeEntriesScreen} options={{ headerShown: true, title: 'Timesheet' }} />
         <Stack.Screen name="TaskUpload" component={TaskUploadScreen} options={{ headerShown: true, title: 'Upload Completed Task' }} />

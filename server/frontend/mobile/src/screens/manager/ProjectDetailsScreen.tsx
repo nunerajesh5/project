@@ -38,14 +38,14 @@ export default function ProjectDetailsScreen() {
       // Load tasks
       const taskRes = await listProjectTasks(String(id), 1, 200);
       const tasks = taskRes.tasks || [];
-      let completed = 0, overdue = 0;
+      let completed = 0, onHold = 0;
       for (const t of tasks) {
-        const st = String(t.status || '').toLowerCase();
-        if (st === 'done' || st === 'completed') completed++;
-        if (st === 'overdue') overdue++;
+        const st = t.status || '';
+        if (st === 'Completed') completed++;
+        if (st === 'On Hold') onHold++;
       }
       const total = tasks.length;
-      setTaskSummary({ total, completed, overdue });
+      setTaskSummary({ total, completed, overdue: onHold });
       
       // Calculate progress
       setProgress(total > 0 ? Math.round((completed / total) * 100) : 0);

@@ -22,7 +22,7 @@ import { getEmployeeTasks } from '../../api/endpoints';
 import Card from '../../components/shared/Card';
 
 // Task types
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Task {
   id: string;
@@ -171,10 +171,11 @@ export default function ManagerDashboardScreen() {
 
   const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#007AFF';
-      case 'todo': return '#FF9500';
-      case 'overdue': return '#FF3B30';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
@@ -386,7 +387,7 @@ export default function ManagerDashboardScreen() {
                 </View>
                 <View style={styles.productivityInfoRow}>
                   <Text style={styles.productivityInfoLabel}>Task</Text>
-                  <Text style={styles.productivityInfoValue}>{overview?.totalActiveProjects || allProjects.filter(p => p.status === 'active').length}</Text>
+                  <Text style={styles.productivityInfoValue}>{overview?.totalActiveProjects || allProjects.filter(p => p.status === 'Active').length}</Text>
                 </View>
               </View>
               <View style={styles.productivityBars}>

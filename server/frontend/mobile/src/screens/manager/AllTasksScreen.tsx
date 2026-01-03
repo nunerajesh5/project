@@ -11,7 +11,7 @@ import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import TaskBulkActions from '../../components/manager/TaskBulkActions';
 import TaskFilterModal from '../../components/manager/TaskFilterModal';
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Task {
   id: string;
@@ -63,12 +63,13 @@ export default function AllTasksScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
 
-  const getStatusColor = (status: TaskStatus) => {
+  const getStatusColor = (status: TaskStatus | string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#007AFF';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
@@ -173,7 +174,7 @@ export default function AllTasksScreen() {
           setTasks(prev => 
             prev.map(task => 
               taskIds.includes(task.id) 
-                ? { ...task, status: 'done' as TaskStatus }
+                ? { ...task, status: 'Completed' as TaskStatus }
                 : task
             )
           );

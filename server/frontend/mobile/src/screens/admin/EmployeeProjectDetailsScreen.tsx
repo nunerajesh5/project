@@ -158,11 +158,11 @@ export default function EmployeeProjectDetailsScreen() {
   }, [showTasksModal, selectedTask]);
 
   const TASK_STATUSES = [
-    { key: 'todo', label: 'TO DO' },
-    { key: 'in_progress', label: 'IN PROGRESS' },
-    { key: 'completed', label: 'COMPLETED' },
-    { key: 'blocked', label: 'BLOCKED' },
-    { key: 'on_hold', label: 'ON HOLD' },
+    { key: 'To Do', label: 'TO DO' },
+    { key: 'Active', label: 'ACTIVE' },
+    { key: 'Completed', label: 'COMPLETED' },
+    { key: 'Cancelled', label: 'CANCELLED' },
+    { key: 'On Hold', label: 'ON HOLD' },
   ];
 
   const loadData = async () => {
@@ -306,7 +306,7 @@ export default function EmployeeProjectDetailsScreen() {
           id: '2',
           title: 'Design responsive UI components',
           description: 'Create mobile-first responsive design for all screens',
-          status: 'in_progress',
+          status: 'Active',
           priority: 'high',
           dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago (overdue)
           assignedTo: user?.id || 'current-user',
@@ -315,7 +315,7 @@ export default function EmployeeProjectDetailsScreen() {
           id: '3',
           title: 'Implement database schema',
           description: 'Set up PostgreSQL database with proper relationships',
-          status: 'todo',
+          status: 'To Do',
           priority: 'medium',
           dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
           assignedTo: user?.id || 'current-user',
@@ -324,7 +324,7 @@ export default function EmployeeProjectDetailsScreen() {
           id: '4',
           title: 'Write unit tests',
           description: 'Create comprehensive test suite for all modules',
-          status: 'todo',
+          status: 'On Hold',
           priority: 'medium',
           dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago (overdue)
           assignedTo: user?.id || 'current-user',
@@ -333,7 +333,7 @@ export default function EmployeeProjectDetailsScreen() {
           id: '5',
           title: 'API documentation',
           description: 'Document all API endpoints and usage examples',
-          status: 'todo',
+          status: 'To Do',
           priority: 'low',
           dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
           assignedTo: user?.id || 'current-user',
@@ -342,7 +342,7 @@ export default function EmployeeProjectDetailsScreen() {
           id: '6',
           title: 'Performance optimization',
           description: 'Optimize database queries and frontend rendering',
-          status: 'todo',
+          status: 'Cancelled',
           priority: 'low',
           dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago (overdue)
           assignedTo: user?.id || 'current-user',
@@ -426,9 +426,11 @@ export default function EmployeeProjectDetailsScreen() {
 
   const getTaskStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return '#34C759';
-      case 'in_progress': return '#007AFF';
-      case 'todo': return '#FF9500';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
@@ -443,7 +445,7 @@ export default function EmployeeProjectDetailsScreen() {
   };
 
   const isOverdue = (dueDate: Date, status?: string) => {
-    return (status !== 'completed') && (dueDate < new Date());
+    return (status !== 'Completed') && (dueDate < new Date());
   };
 
   const getOverdueTasks = () => {
@@ -451,7 +453,7 @@ export default function EmployeeProjectDetailsScreen() {
   };
 
   const getCompletedTasks = () => {
-    return projectTasks.filter(task => task.status === 'completed');
+    return projectTasks.filter(task => task.status === 'Completed');
   };
 
   const getTasksForFilter = () => {

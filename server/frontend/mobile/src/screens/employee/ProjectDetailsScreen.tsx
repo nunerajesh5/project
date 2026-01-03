@@ -70,7 +70,7 @@ export default function ProjectDetailsScreen() {
       
       // Calculate progress
       const completed = formattedTasks.filter((t: any) => 
-        t.status?.toLowerCase() === 'done' || t.status?.toLowerCase() === 'completed'
+        t.status === 'Completed'
       ).length;
       setProgress(formattedTasks.length > 0 ? Math.round((completed / formattedTasks.length) * 100) : 0);
 
@@ -201,28 +201,26 @@ export default function ProjectDetailsScreen() {
   };
 
   const getStatusColor = (status: string, dueDate?: string) => {
-    const statusLower = status?.toLowerCase() || '';
     const now = new Date();
     
     // Check if task is delayed (overdue and not completed)
-    if (dueDate && statusLower !== 'done' && statusLower !== 'completed') {
+    if (dueDate && status !== 'Completed') {
       const due = new Date(dueDate);
       if (due < now) {
         return '#FF3B30'; // Red for delayed
       }
     }
     
-    switch (statusLower) {
-      case 'done':
-      case 'completed':
+    switch (status) {
+      case 'Completed':
         return '#34C759'; // Green
-      case 'in_progress':
-      case 'in process':
-        return '#5AC8FA'; // Blue
-      case 'overdue':
+      case 'Active':
+        return '#877ED2'; // Purple
+      case 'Cancelled':
         return '#FF3B30'; // Red
-      case 'todo':
-      case 'to do':
+      case 'On Hold':
+        return '#FF9500'; // Orange
+      case 'To Do':
         return '#8E8E93'; // Grey
       default:
         return '#8E8E93';
@@ -230,34 +228,27 @@ export default function ProjectDetailsScreen() {
   };
 
   const getStatusText = (status: string, dueDate?: string) => {
-    const statusLower = status?.toLowerCase() || '';
     const now = new Date();
     
     // Check if task is delayed (overdue and not completed)
-    if (dueDate) {
+    if (dueDate && status !== 'Completed') {
       const due = new Date(dueDate);
-      if (due < now && statusLower !== 'done' && statusLower !== 'completed') {
+      if (due < now) {
         const daysOverdue = Math.ceil((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
         return `Delayed ${daysOverdue}d`;
       }
     }
     
-    switch (statusLower) {
-      case 'done':
-      case 'completed':
-        return 'Complete';
-      case 'in_progress':
-      case 'in process':
-        return 'In Process';
-      case 'overdue':
-        if (dueDate) {
-          const due = new Date(dueDate);
-          const daysOverdue = Math.ceil((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-          return `Delayed ${daysOverdue}d`;
-        }
-        return 'Delayed';
-      case 'todo':
-      case 'to do':
+    switch (status) {
+      case 'Completed':
+        return 'Completed';
+      case 'Active':
+        return 'Active';
+      case 'Cancelled':
+        return 'Cancelled';
+      case 'On Hold':
+        return 'On Hold';
+      case 'To Do':
         return 'To Do';
       default:
         return 'To Do';
@@ -265,12 +256,14 @@ export default function ProjectDetailsScreen() {
   };
 
   const getProjectStatus = () => {
-    if (!project?.status) return 'In Progress';
-    const status = project.status.toLowerCase();
-    if (status === 'active' || status === 'in_progress') return 'In Progress';
-    if (status === 'completed' || status === 'done') return 'Completed';
-    if (status === 'on_hold') return 'On Hold';
-    return 'In Progress';
+    if (!project?.status) return 'Active';
+    const status = project.status;
+    if (status === 'To Do') return 'To Do';
+    if (status === 'Active') return 'Active';
+    if (status === 'Completed') return 'Completed';
+    if (status === 'On Hold') return 'On Hold';
+    if (status === 'Cancelled') return 'Cancelled';
+    return 'Active';
   };
 
   const displayedTasks = showMoreTasks ? tasks : tasks.slice(0, 4);
@@ -446,19 +439,17 @@ export default function ProjectDetailsScreen() {
                     
                     // Get status badge color
                     const getTaskStatusColor = (status: string) => {
-                      switch (status?.toLowerCase()) {
-                        case 'new':
+                      switch (status) {
+                        case 'Completed':
                           return '#34C759';
-                        case 'in progress':
-                        case 'in_progress':
-                        case 'in process':
-                          return '#5AC8FA';
-                        case 'completed':
-                        case 'done':
-                          return '#007AFF';
-                        case 'on hold':
-                        case 'on_hold':
+                        case 'Active':
+                          return '#877ED2';
+                        case 'Cancelled':
+                          return '#FF3B30';
+                        case 'On Hold':
                           return '#FF9500';
+                        case 'To Do':
+                          return '#8E8E93';
                         default:
                           return '#8E8E93';
                       }
@@ -480,22 +471,19 @@ export default function ProjectDetailsScreen() {
 
                     // Get status text
                     const getTaskStatusText = (status: string) => {
-                      const statusLower = status?.toLowerCase() || '';
-                      switch (statusLower) {
-                        case 'done':
-                        case 'completed':
+                      switch (status) {
+                        case 'Completed':
                           return 'Completed';
-                        case 'in_progress':
-                        case 'in progress':
-                        case 'in process':
-                          return 'In Progress';
-                        case 'on_hold':
-                        case 'on hold':
+                        case 'Active':
+                          return 'Active';
+                        case 'Cancelled':
+                          return 'Cancelled';
+                        case 'On Hold':
                           return 'On Hold';
-                        case 'new':
-                          return 'New';
+                        case 'To Do':
+                          return 'To Do';
                         default:
-                          return 'New';
+                          return 'To Do';
                       }
                     };
 

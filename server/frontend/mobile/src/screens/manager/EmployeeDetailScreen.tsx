@@ -43,13 +43,12 @@ export default function EmployeeDetailScreen() {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'active': return '#34C759';
-      case 'completed': return '#007AFF';
-      case 'on_hold': return '#FF9500';
-      case 'cancelled': return '#FF3B30';
-      case 'pending': return '#FFCC00';
-      case 'todo': return '#8E8E93';
+    switch (status) {
+      case 'Active': return '#34C759';
+      case 'Completed': return '#007AFF';
+      case 'On Hold': return '#FF9500';
+      case 'Cancelled': return '#FF3B30';
+      case 'To Do': return '#FFCC00';
       default: return '#8E8E93';
     }
   };

@@ -130,27 +130,27 @@ export default function ProjectDetailsScreen() {
       // Load tasks from backend and compute progress from real statuses
       let totalTasks = 0;
       let completedTasks = 0;
-      let inProgressTasks = 0;
-      let overdueTasks = 0;
+      let activeTasks = 0;
+      let onHoldTasks = 0;
       let todoTasks = 0;
       try {
         const taskRes = await listProjectTasks(String(id), 1, 200);
         const tasks = taskRes.tasks || [];
         totalTasks = tasks.length;
         for (const t of tasks) {
-          const st = String(t.status || '').toLowerCase();
-          if (st === 'done' || st === 'completed' || st === 'complete') completedTasks++;
-          else if (st === 'in_progress') inProgressTasks++;
-          else if (st === 'overdue') overdueTasks++;
+          const st = t.status || '';
+          if (st === 'Completed') completedTasks++;
+          else if (st === 'Active') activeTasks++;
+          else if (st === 'On Hold') onHoldTasks++;
           else todoTasks++;
         }
       } catch (e) {
-        totalTasks = 0; completedTasks = 0; inProgressTasks = 0; overdueTasks = 0; todoTasks = 0;
+        totalTasks = 0; completedTasks = 0; activeTasks = 0; onHoldTasks = 0; todoTasks = 0;
       }
-      const activeTasks = Math.max(0, completedTasks + inProgressTasks + overdueTasks);
+      const activeTotal = Math.max(0, completedTasks + activeTasks + onHoldTasks);
       let progress = 0;
-      if (activeTasks > 0) {
-        const raw = (completedTasks / activeTasks) * 100;
+      if (activeTotal > 0) {
+        const raw = (completedTasks / activeTotal) * 100;
         progress = Math.min(100, completedTasks > 0 && raw < 1 ? 1 : Math.round(raw));
       }
 

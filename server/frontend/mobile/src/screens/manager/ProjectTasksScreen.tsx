@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import VoiceToTextButton from '../../components/shared/VoiceToTextButton';
 import { typography } from '../../design/tokens';
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Employee {
   id: string;
@@ -216,22 +216,24 @@ export default function ProjectTasksScreen() {
     setRefreshing(false);
   };
 
-  const getStatusColor = (status: TaskStatus) => {
+  const getStatusColor = (status: TaskStatus | string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#877ED2';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
 
-  const getStatusText = (status: TaskStatus) => {
+  const getStatusText = (status: TaskStatus | string) => {
     switch (status) {
-      case 'in_progress': return 'In Progress';
-      case 'todo': return 'To Do';
-      case 'done': return 'Completed';
-      case 'overdue': return 'Overdue';
+      case 'Active': return 'Active';
+      case 'To Do': return 'To Do';
+      case 'Completed': return 'Completed';
+      case 'Cancelled': return 'Cancelled';
+      case 'On Hold': return 'On Hold';
       default: return status;
     }
   };
@@ -340,7 +342,7 @@ export default function ProjectTasksScreen() {
       await api.post('/api/tasks', {
         project_id: projectId,
         title: taskName,
-        status: 'todo',
+        status: 'To Do',
         assigned_to: assigneeIds.length > 0 ? assigneeIds[0] : null,
         assigned_employees: assigneeIds,
         due_date: endDate.toISOString().split('T')[0],
@@ -414,13 +416,11 @@ export default function ProjectTasksScreen() {
 
   // Map UI-friendly labels to backend-supported TaskStatus values
   const statusOptions: { value: TaskStatus; label: string; icon: string; color: string }[] = [
-    { value: 'in_progress', label: 'IN PROGRESS', icon: '⟳', color: '#007AFF' },
-    { value: 'todo',        label: 'PLANNING',     icon: '○', color: '#8E8E93' },
-    { value: 'done',        label: 'COMPLETED',    icon: '●', color: '#9333EA' },
-    { value: 'overdue',     label: 'AT RISK',      icon: '●', color: '#F59E0B' },
-    { value: 'todo',        label: 'UPDATE REQUIRED', icon: '●', color: '#FCD34D' },
-    { value: 'todo',        label: 'ON HOLD',      icon: '●', color: '#78716C' },
-    { value: 'overdue',     label: 'CANCELLED',    icon: '●', color: '#6B7280' },
+    { value: 'To Do', label: 'TO DO', icon: '○', color: '#8E8E93' },
+    { value: 'Active', label: 'ACTIVE', icon: '⟳', color: '#877ED2' },
+    { value: 'Completed', label: 'COMPLETED', icon: '●', color: '#34C759' },
+    { value: 'Cancelled', label: 'CANCELLED', icon: '●', color: '#FF3B30' },
+    { value: 'On Hold', label: 'ON HOLD', icon: '●', color: '#FF9500' },
   ];
 
   const filteredStatusOptions = statusOptions.filter(option =>

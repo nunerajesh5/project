@@ -412,7 +412,7 @@ router.get('/:id/projects', async (req, res) => {
 
     const result = await pool.query(
       `SELECT DISTINCT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
-              p.priority, p.complexity, p.team_size, p.progress, p.risk_level, p.estimated_hours, p.technologies,
+              p.priority, p.team_size, p.progress, p.estimated_hours,
               p.created_at, p.updated_at, c.name as client_name, c.id as client_id,
               COUNT(t.id) as task_count
        FROM projects p
@@ -420,7 +420,7 @@ router.get('/:id/projects', async (req, res) => {
        JOIN tasks t ON p.id = t.project_id
        ${where}
        GROUP BY p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
-                p.priority, p.complexity, p.team_size, p.progress, p.risk_level, p.estimated_hours, p.technologies,
+                p.priority, p.team_size, p.progress, p.estimated_hours,
                 p.created_at, p.updated_at, c.name, c.id
        ORDER BY p.created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,

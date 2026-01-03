@@ -21,7 +21,7 @@ import { api } from '../../api/client';
 import { tokens } from '../../design/tokens';
 const { colors, spacing, radii, typography } = tokens;
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Employee {
   id: string;
@@ -57,7 +57,7 @@ export default function EmployeeAllTasksScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'in_progress' | 'todo' | 'done' | 'all'>('in_progress');
+  const [selectedFilter, setSelectedFilter] = useState<'Active' | 'To Do' | 'Completed' | 'Cancelled' | 'On Hold' | 'all'>('Active');
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [runningTimers, setRunningTimers] = useState<Record<string, { startTime: number; elapsed: number }>>({});
@@ -107,29 +107,46 @@ export default function EmployeeAllTasksScreen() {
   });
 
   // Count tasks by status
-  const taskCounts = {
-    in_progress: tasks.filter(t => t.status === 'in_progress').length,
-    todo: tasks.filter(t => t.status === 'todo').length,
-    done: tasks.filter(t => t.status === 'done').length,
+  const taskCounts: Record<string, number> = {
+    Active: tasks.filter(t => t.status === 'Active').length,
+    'To Do': tasks.filter(t => t.status === 'To Do').length,
+    Completed: tasks.filter(t => t.status === 'Completed').length,
+    Cancelled: tasks.filter(t => t.status === 'Cancelled').length,
+    'On Hold': tasks.filter(t => t.status === 'On Hold').length,
     all: tasks.length,
   };
 
-  const getStatusColor = (status: TaskStatus) => {
+  // Get available statuses dynamically (only statuses that have tasks)
+  const availableStatuses = (['Active', 'To Do', 'Completed', 'Cancelled', 'On Hold'] as const)
+    .filter(status => taskCounts[status] > 0);
+
+  // Reset filter to 'all' if selected filter no longer has tasks
+  useEffect(() => {
+    if (selectedFilter !== 'all' && taskCounts[selectedFilter] === 0) {
+      // Find first available status or default to 'all'
+      const firstAvailable = availableStatuses[0];
+      setSelectedFilter(firstAvailable || 'all');
+    }
+  }, [tasks]);
+
+  const getStatusColor = (status: TaskStatus | string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#877ED2';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
 
-  const getStatusText = (status: TaskStatus) => {
+  const getStatusText = (status: TaskStatus | string) => {
     switch (status) {
-      case 'in_progress': return 'In Progress';
-      case 'todo': return 'To Do';
-      case 'done': return 'Completed';
-      case 'overdue': return 'Overdue';
+      case 'Active': return 'Active';
+      case 'To Do': return 'To Do';
+      case 'Completed': return 'Completed';
+      case 'Cancelled': return 'Cancelled';
+      case 'On Hold': return 'On Hold';
       default: return status;
     }
   };
@@ -355,41 +372,30 @@ export default function EmployeeAllTasksScreen() {
           </ScrollView>
         </View>
 
-        {/* Task Category Filters */}
+        {/* Task Category Filters - Dynamic based on available tasks */}
         <View style={styles.filterContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'in_progress' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('in_progress')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'in_progress' && styles.filterTextActive]}>
-                In Progress ({taskCounts.in_progress})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'todo' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('todo')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'todo' && styles.filterTextActive]}>
-                To Do ({taskCounts.todo})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'done' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('done')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'done' && styles.filterTextActive]}>
-                Completed ({taskCounts.done})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'all' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('all')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'all' && styles.filterTextActive]}>
-                All ({taskCounts.all})
-              </Text>
-            </TouchableOpacity>
+            {availableStatuses.map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[styles.filterTab, selectedFilter === status && styles.filterTabActive]}
+                onPress={() => setSelectedFilter(status)}
+              >
+                <Text style={[styles.filterText, selectedFilter === status && styles.filterTextActive]}>
+                  {status} ({taskCounts[status]})
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {tasks.length > 0 && (
+              <TouchableOpacity
+                style={[styles.filterTab, selectedFilter === 'all' && styles.filterTabActive]}
+                onPress={() => setSelectedFilter('all')}
+              >
+                <Text style={[styles.filterText, selectedFilter === 'all' && styles.filterTextActive]}>
+                  All ({taskCounts.all})
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
 
@@ -473,7 +479,7 @@ export default function EmployeeAllTasksScreen() {
                   {/* Avatar with Plus */}
                   <View style={styles.avatarContainer}>
                     <View style={styles.avatar}>
-                      <Ionicons name="person" size={16} color="#fff" />
+                      <Ionicons name="person" size={12} color="#fff" />
                     </View>
                     <View style={styles.avatarPlus}>
                       <Text style={styles.avatarPlusText}>+</Text>
@@ -947,47 +953,45 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
   },
   avatarContainer: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'absolute',
-    top: 40,
-    right: 12,
-  },
-  avatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 18,
-    backgroundColor: '#FF9500',
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
     top: 8,
-    left: 10,
+    right: 12,
+  },
+  avatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF9500',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 30,
+    right: 16,
     zIndex: 1,
-    marginLeft: -30,
-    marginTop: -10,
   },
   avatarPlus: {
-    width: 32,
-    height: 32,
-    borderRadius: 20,
+    width: 24,
+    height: 24,
+    borderRadius: 16,
     backgroundColor: '#666666',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    bottom: 5,
-    right: 8,
-    borderWidth: 2,
-    borderColor: '#fff',
+    top: 28,
+    right: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
     zIndex: 2,
   },
   avatarPlusText: {
-    fontSize: 14,
-    color: '#fff',
+    fontSize: 10,
+    color: '#FFFFFF',
     fontWeight: '600',
-    lineHeight: 14,
+    lineHeight: 12,
   },
   datesContainer: {
     flexDirection: 'row',

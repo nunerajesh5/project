@@ -7,7 +7,7 @@ import { api } from '../../api/client';
 import Card from '../../components/shared/Card';
 import AppHeader from '../../components/shared/AppHeader';
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Task {
   id: string;
@@ -32,12 +32,13 @@ export default function AllTasksScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const getStatusColor = (status: TaskStatus) => {
+  const getStatusColor = (status: TaskStatus | string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#007AFF';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };

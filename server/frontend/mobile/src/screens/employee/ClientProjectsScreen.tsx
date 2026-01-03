@@ -85,14 +85,14 @@ export default function ClientProjectsScreen() {
       
       // Calculate progress based on status
       let progress = 0;
-      if (project.status === 'completed') {
+      if (project.status === 'Completed') {
         progress = 100;
-      } else if (project.status === 'on_hold') {
+      } else if (project.status === 'On Hold') {
         progress = Math.floor(Math.random() * 30) + 10; // 10-40%
-      } else if (project.status === 'active') {
+      } else if (project.status === 'Active') {
         progress = Math.floor(Math.random() * 70) + 20; // 20-90%
       } else {
-        progress = 0; // pending
+        progress = 0; // To Do
       }
       
       return {

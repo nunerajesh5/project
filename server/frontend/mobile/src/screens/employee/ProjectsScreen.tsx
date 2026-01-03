@@ -28,7 +28,7 @@ export default function ProjectsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'in_progress' | 'new' | 'completed' | 'all'>('in_progress');
+  const [selectedFilter, setSelectedFilter] = useState<'active' | 'todo' | 'completed' | 'cancelled' | 'on_hold' | 'all'>('active');
 
   const loadProjects = async () => {
     try {
@@ -59,26 +59,59 @@ export default function ProjectsScreen() {
   };
 
   const getStatusCounts = () => {
-    const inProgress = projects.filter(p => p.status === 'active' || p.status === 'in_progress').length;
-    const newProjects = projects.filter(p => p.status === 'pending' || p.status === 'todo').length;
-    const completed = projects.filter(p => p.status === 'completed').length;
+    const active = projects.filter(p => p.status === 'Active').length;
+    const todo = projects.filter(p => p.status === 'To Do').length;
+    const completed = projects.filter(p => p.status === 'Completed').length;
+    const cancelled = projects.filter(p => p.status === 'Cancelled').length;
+    const onHold = projects.filter(p => p.status === 'On Hold').length;
     return {
-      in_progress: inProgress,
-      new: newProjects,
+      active,
+      todo,
       completed,
+      cancelled,
+      on_hold: onHold,
       all: projects.length,
     };
   };
 
   const statusCounts = getStatusCounts();
 
+  // Get available statuses dynamically (only statuses that have projects)
+  const availableStatuses = [
+    { key: 'active', label: 'Active', count: statusCounts.active },
+    { key: 'todo', label: 'To Do', count: statusCounts.todo },
+    { key: 'completed', label: 'Completed', count: statusCounts.completed },
+    { key: 'cancelled', label: 'Cancelled', count: statusCounts.cancelled },
+    { key: 'on_hold', label: 'On Hold', count: statusCounts.on_hold },
+  ].filter(status => status.count > 0);
+
+  // Reset filter to first available or 'all' if selected filter no longer has projects
+  useEffect(() => {
+    if (selectedFilter !== 'all') {
+      const currentFilterCount = selectedFilter === 'active' ? statusCounts.active :
+        selectedFilter === 'todo' ? statusCounts.todo :
+        selectedFilter === 'completed' ? statusCounts.completed :
+        selectedFilter === 'cancelled' ? statusCounts.cancelled :
+        selectedFilter === 'on_hold' ? statusCounts.on_hold : 0;
+      
+      if (currentFilterCount === 0) {
+        const firstAvailable = availableStatuses[0];
+        setSelectedFilter(firstAvailable?.key as any || 'all');
+      }
+    }
+  }, [projects]);
+
   const filteredProjects = projects.filter(project => {
-    if (selectedFilter === 'in_progress') {
-      if (project.status !== 'active' && project.status !== 'in_progress') return false;
-    } else if (selectedFilter === 'new') {
-      if (project.status !== 'pending' && project.status !== 'todo') return false;
+    if (selectedFilter === 'active') {
+      if (project.status !== 'Active') return false;
+    } else if (selectedFilter === 'todo') {
+      if (project.status !== 'To Do') return false;
     } else if (selectedFilter === 'completed') {
-      if (project.status !== 'completed') return false;
+      if (project.status !== 'Completed') return false;
+    } else if (selectedFilter === 'cancelled') {
+      if (project.status !== 'Cancelled') return false;
+    } else if (selectedFilter === 'on_hold') {
+      if (project.status !== 'On Hold') return false;
     }
 
     if (search) {
@@ -95,17 +128,16 @@ export default function ProjectsScreen() {
   });
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-      case 'in_progress':
+    switch (status) {
+      case 'Active':
         return '#877ED2';
-      case 'completed':
+      case 'Completed':
         return '#34C759';
-      case 'pending':
-      case 'todo':
-      case 'on_hold':
+      case 'To Do':
         return '#FF9500';
-      case 'cancelled':
+      case 'On Hold':
+        return '#FF9500';
+      case 'Cancelled':
         return '#FF3B30';
       default:
         return '#8E8E93';
@@ -113,18 +145,16 @@ export default function ProjectsScreen() {
   };
 
   const getStatusText = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
+    switch (status) {
+      case 'Active':
+        return 'Active';
+      case 'Completed':
         return 'Completed';
-      case 'pending':
-      case 'todo':
-        return 'New';
-      case 'on_hold':
+      case 'To Do':
+        return 'To Do';
+      case 'On Hold':
         return 'On Hold';
-      case 'cancelled':
+      case 'Cancelled':
         return 'Cancelled';
       default:
         return status || 'Unknown';
@@ -181,45 +211,34 @@ export default function ProjectsScreen() {
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Status filters */}
+        {/* Status filters - Dynamic based on available projects */}
         <View style={styles.filterContainer}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterContent}
           >
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'in_progress' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('in_progress')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'in_progress' && styles.filterTextActive]}>
-                In Progress ({statusCounts.in_progress})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'new' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('new')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'new' && styles.filterTextActive]}>
-                New ({statusCounts.new})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'completed' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('completed')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'completed' && styles.filterTextActive]}>
-                Completed ({statusCounts.completed})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterTab, selectedFilter === 'all' && styles.filterTabActive]}
-              onPress={() => setSelectedFilter('all')}
-            >
-              <Text style={[styles.filterText, selectedFilter === 'all' && styles.filterTextActive]}>
-                All ({statusCounts.all})
-              </Text>
-            </TouchableOpacity>
+            {availableStatuses.map((status) => (
+              <TouchableOpacity
+                key={status.key}
+                style={[styles.filterTab, selectedFilter === status.key && styles.filterTabActive]}
+                onPress={() => setSelectedFilter(status.key as any)}
+              >
+                <Text style={[styles.filterText, selectedFilter === status.key && styles.filterTextActive]}>
+                  {status.label} ({status.count})
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {projects.length > 0 && (
+              <TouchableOpacity
+                style={[styles.filterTab, selectedFilter === 'all' && styles.filterTabActive]}
+                onPress={() => setSelectedFilter('all')}
+              >
+                <Text style={[styles.filterText, selectedFilter === 'all' && styles.filterTextActive]}>
+                  All ({statusCounts.all})
+                </Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
 
@@ -275,7 +294,7 @@ export default function ProjectsScreen() {
                     </View>
                     <View style={styles.avatarContainer}>
                       <View style={styles.avatar}>
-                        <Ionicons name="person" size={18} color="#FF9500" />
+                        <Ionicons name="person" size={12} color="#fff" />
                       </View>
                       <View style={styles.avatarPlus}>
                         <Text style={styles.avatarPlusText}>+</Text>
@@ -313,7 +332,7 @@ export default function ProjectsScreen() {
                           </View>
                           <View style={styles.overdueBar} />
                         </>
-                      ) : project.status === 'active' || project.status === 'in_progress' ? (
+                      ) : project.status === 'Active' ? (
                         <>
                           <View style={styles.overdueRow}>
                             <Text style={styles.dateLabel}>In Progress</Text>
@@ -321,7 +340,7 @@ export default function ProjectsScreen() {
                           </View>
                           <View style={styles.inProgressBar} />
                         </>
-                      ) : project.status === 'completed' ? (
+                      ) : project.status === 'Completed' ? (
                         <>
                           <View style={styles.overdueRow}>
                             <Text style={styles.dateLabel}>Completed</Text>
@@ -329,15 +348,15 @@ export default function ProjectsScreen() {
                           </View>
                           <View style={styles.completedBar} />
                         </>
-                      ) : project.status === 'pending' || project.status === 'todo' ? (
+                      ) : project.status === 'To Do' ? (
                         <>
                           <View style={styles.overdueRow}>
-                            <Text style={styles.dateLabel}>New</Text>
+                            <Text style={styles.dateLabel}>To Do</Text>
                             <Text style={styles.newValue}>{daysRemaining}d</Text>
                           </View>
                           <View style={styles.newBar} />
                         </>
-                      ) : project.status === 'on_hold' ? (
+                      ) : project.status === 'On Hold' ? (
                         <>
                           <View style={styles.overdueRow}>
                             <Text style={styles.dateLabel}>On Hold</Text>
@@ -345,7 +364,7 @@ export default function ProjectsScreen() {
                           </View>
                           <View style={styles.onHoldBar} />
                         </>
-                      ) : project.status === 'cancelled' ? (
+                      ) : project.status === 'Cancelled' ? (
                         <>
                           <View style={styles.overdueRow}>
                             <Text style={styles.dateLabel}>Cancelled</Text>
@@ -522,51 +541,47 @@ const styles = StyleSheet.create({
     fontFamily: typography.families.regular,
   },
   avatarContainer: {
-    width: 44,
-    height: 44,
-    alignItems: 'flex-end',
-    justifyContent: 'flex-start',
-    position: 'absolute',
-    top: 10,
-    right: 16,
-  },
-  avatar: {
-    width: 22,
-    height: 22,
-    borderRadius: 16,
-    // backgroundColor: '#FF9500',
-    borderColor: '#FF9500',
-    borderStyle: 'solid',
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 2,
-    borderWidth: 1.5,
+    top: 8,
+    right: 12,
+  },
+  avatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF9500',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 30,
+    right: 16,
+    zIndex: 1,
   },
   avatarPlus: {
-    width: 26,
-    height: 26,
+    width: 24,
+    height: 24,
     borderRadius: 16,
     backgroundColor: '#666666',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    bottom: 0,
-    left: 10,
-    borderWidth: 2,
+    top: 28,
+    right: 4,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
-    zIndex: 1,
+    zIndex: 2,
   },
   avatarPlusText: {
-    fontSize: 16,
+    fontSize: 10,
     color: '#FFFFFF',
-    fontWeight: '700',
+    fontWeight: '600',
     fontFamily: typography.families.bold,
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 12,
   },
   locationRow: {
     paddingHorizontal: 16,

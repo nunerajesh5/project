@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
       where += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length})`; 
     }
     const list = await pool.query(
-      `SELECT id, name, salutation, first_name, last_name, gst, email, phone, address, created_at, updated_at 
+      `SELECT id, name, first_name, last_name, email, phone, address, created_at, updated_at 
        FROM clients ${where} 
        ORDER BY created_at DESC 
        LIMIT ${limit} OFFSET ${offset}`,
@@ -42,7 +42,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      'SELECT id, name, salutation, first_name, last_name, gst, email, phone, address, created_at, updated_at FROM clients WHERE id = $1',
+      'SELECT id, name, first_name, last_name, email, phone, address, created_at, updated_at FROM clients WHERE id = $1',
       [id]
     );
     if (result.rows.length === 0) {
@@ -108,23 +108,21 @@ router.get('/:id/projects', async (req, res) => {
 
 // POST /api/clients - Create new client
 router.post('/', [
-  body('salutation').optional({ nullable: true, checkFalsy: true }).isString().trim(),
   body('firstName').trim().notEmpty().withMessage('First name is required'),
   body('lastName').trim().notEmpty().withMessage('Last name is required'),
-  body('gst').optional({ nullable: true, checkFalsy: true }).isString().trim(),
   body('email').isEmail().withMessage('Valid email required'),
   body('phone').optional({ nullable: true, checkFalsy: true }).isString().trim(),
   body('address').optional({ nullable: true, checkFalsy: true }).isString().trim(),
 ], handleValidation, async (req, res) => {
   try {
-    const { salutation, firstName, lastName, gst, email, phone, address } = req.body;
+    const { firstName, lastName, email, phone, address } = req.body;
     
     // Combine first and last name for the name field
     const fullName = `${firstName} ${lastName}`.trim();
     
     const result = await pool.query(
-      'INSERT INTO clients (name, salutation, first_name, last_name, gst, email, phone, address) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [fullName, salutation || null, firstName, lastName, gst || null, email, phone, address]
+      'INSERT INTO clients (name, first_name, last_name, email, phone, address) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [fullName, firstName, lastName, email, phone, address]
     );
     // Non-blocking activity log
     try {
@@ -147,17 +145,15 @@ router.post('/', [
 
 // PUT /api/clients/:id - Update client
 router.put('/:id', [
-  body('salutation').optional().isString(),
   body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty'),
   body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty'),
-  body('gst').optional().isString(),
   body('email').optional().isEmail().withMessage('Valid email required'),
   body('phone').optional().isString(),
   body('address').optional().isString(),
 ], handleValidation, async (req, res) => {
   try {
     const { id } = req.params;
-    const { salutation, firstName, lastName, gst, email, phone, address } = req.body;
+    const { firstName, lastName, email, phone, address } = req.body;
     
     // Check if client exists
     const exists = await pool.query('SELECT id FROM clients WHERE id = $1', [id]);
@@ -181,8 +177,8 @@ router.put('/:id', [
     }
 
     const result = await pool.query(
-      'UPDATE clients SET name = COALESCE($1, name), salutation = COALESCE($2, salutation), first_name = COALESCE($3, first_name), last_name = COALESCE($4, last_name), gst = COALESCE($5, gst), email = COALESCE($6, email), phone = COALESCE($7, phone), address = COALESCE($8, address), updated_at = CURRENT_TIMESTAMP WHERE id = $9 RETURNING *',
-      [updateName, salutation, firstName, lastName, gst, email, phone, address, id]
+      'UPDATE clients SET name = COALESCE($1, name), first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name), email = COALESCE($4, email), phone = COALESCE($5, phone), address = COALESCE($6, address), updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING *',
+      [updateName, firstName, lastName, email, phone, address, id]
     );
     res.json({ client: result.rows[0] });
   } catch (err) {

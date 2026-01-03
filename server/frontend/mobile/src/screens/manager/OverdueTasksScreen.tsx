@@ -19,13 +19,13 @@ import Button from '../../components/shared/Button';
 import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import { formatCurrencyINR } from '../../utils/currency';
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface Task {
   id: string;
   title: string;
   description: string;
-  status: 'todo' | 'in_progress' | 'done' | 'overdue';
+  status: 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
   priority: 'low' | 'medium' | 'high' | 'critical';
   dueDate: Date;
   assignedTo: string;
@@ -84,7 +84,7 @@ export default function OverdueTasksScreen() {
       const mockOverdueTasks = generateMockOverdueTasks(employeesData.employees || [])
         .map(t => ({
           ...t,
-          status: (Math.random() < 0.33 ? 'done' : (Math.random() < 0.66 ? 'in_progress' : 'overdue')) as TaskStatus,
+          status: (Math.random() < 0.33 ? 'Completed' : (Math.random() < 0.66 ? 'Active' : 'On Hold')) as TaskStatus,
         }));
       console.log('Generated tasks:', mockOverdueTasks.length);
       setOverdueTasks(mockOverdueTasks);
@@ -134,7 +134,7 @@ export default function OverdueTasksScreen() {
           id: `task-${empIndex}-${i}-${Date.now()}`,
           title: template.title,
           description: `Detailed description for ${template.title.toLowerCase()}`,
-          status: 'overdue',
+          status: 'Active',
           priority: template.priority,
           dueDate: new Date(Date.now() - daysOverdue * 24 * 60 * 60 * 1000),
           assignedTo: employee.id,
@@ -255,7 +255,7 @@ export default function OverdueTasksScreen() {
       setOverdueTasks(prev => 
         prev.map(task => 
           task.id === taskId 
-            ? { ...task, status: 'done' as const, completedAt: new Date() }
+            ? { ...task, status: 'Completed' as const, completedAt: new Date() }
             : task
         )
       );
@@ -283,10 +283,11 @@ export default function OverdueTasksScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#007AFF';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };

@@ -45,8 +45,8 @@ interface Task {
   description?: string; // instructions/description
   // Attachments selected in UI (upload after task is created)
   attachments?: Array<{ uri: string; name: string; type?: string }>; 
-  // Backend status retained but hidden in UI; default to 'todo'
-  status: 'todo' | 'in_progress' | 'done';
+  // Backend status - default to 'To Do'
+  status: 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
   // Time tracking
   timeEntries?: TimeEntry[];
   totalTrackedTime?: string; // e.g., "25h 25m"
@@ -84,7 +84,7 @@ export default function AddProjectScreen() {
     location: '',
     description: '',
     attachments: [],
-    status: 'todo',
+    status: 'To Do',
   });
   const [showTaskStartDatePicker, setShowTaskStartDatePicker] = useState(false);
   const [showTaskEndDatePicker, setShowTaskEndDatePicker] = useState(false);
@@ -162,7 +162,7 @@ export default function AddProjectScreen() {
       location: '',
       description: '',
       attachments: [],
-      status: 'todo',
+      status: 'To Do',
       timeEntries: [],
       totalTrackedTime: '0h 0m',
     });
@@ -320,7 +320,7 @@ export default function AddProjectScreen() {
         description: description.trim() || null,
         startDate: startDate.toISOString().split('T')[0],
         endDate: dueDate.toISOString().split('T')[0],
-        status: 'active',
+        status: 'To Do',
         budget: estimatedValue ? parseFloat(estimatedValue) : null,
         location: location.trim() || null,
       });

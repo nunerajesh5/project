@@ -9,8 +9,10 @@ DO $$ BEGIN
   CREATE TYPE user_role AS ENUM ('admin', 'manager', 'employee');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- Project statuses (VARCHAR in actual DB): 'To Do', 'Active', 'Completed', 'On Hold', 'Cancelled'
+-- Note: The enum below is for reference only; the actual column uses VARCHAR
 DO $$ BEGIN
-  CREATE TYPE project_status AS ENUM ('active', 'completed', 'on_hold', 'cancelled', 'pending');
+  CREATE TYPE project_status AS ENUM ('To Do', 'Active', 'Completed', 'On Hold', 'Cancelled');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -60,7 +62,7 @@ CREATE TABLE IF NOT EXISTS projects (
   client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   description TEXT,
-  status project_status DEFAULT 'active',
+  status VARCHAR(50) DEFAULT 'To Do',
   start_date DATE,
   end_date DATE,
   budget DECIMAL(12,2),

@@ -22,7 +22,7 @@ import AppHeader from '../../components/shared/AppHeader';
 import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import VoiceToTextButton from '../../components/shared/VoiceToTextButton';
 
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'overdue';
+type TaskStatus = 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
 
 interface TimeEntry {
   id: string;
@@ -301,7 +301,7 @@ export default function CreateTaskScreen() {
       if (makeUnassignedToo) {
         await createProjectTask(selectedProject.id, {
           title: taskTitle.trim(),
-          status: 'todo',
+          status: 'To Do',
         });
       } else {
         // Filter any empty ids just in case
@@ -310,7 +310,7 @@ export default function CreateTaskScreen() {
           validAssignees.map(empId =>
             createProjectTask(selectedProject.id, {
               title: taskTitle.trim(),
-              status: 'todo',
+              status: 'To Do',
               assignedTo: empId,
             })
           )

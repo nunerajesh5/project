@@ -20,7 +20,7 @@ interface Task {
   start: Date;
   end: Date;
   progress: number; // 0-1
-  status: 'not_started' | 'in_progress' | 'completed' | 'on_hold';
+  status: 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
   priority: 'low' | 'medium' | 'high' | 'critical';
   dependencies: string[]; // Array of task IDs this task depends on
   assignee?: string;
@@ -59,9 +59,9 @@ export default function GanttChart({ projects, onProjectPress, onTaskPress }: Ga
     // Calculate progress based on status and time elapsed
     let progress = 0;
     const now = new Date();
-    if (project.status === 'completed') {
+    if (project.status === 'Completed') {
       progress = 1;
-    } else if (project.status === 'active' || project.status === 'in_progress') {
+    } else if (project.status === 'Active') {
       const elapsed = Math.max(0, now.getTime() - startDate.getTime());
       const total = endDate.getTime() - startDate.getTime();
       progress = Math.min(0.8, elapsed / total); // Cap at 80% for active projects
@@ -204,14 +204,16 @@ export default function GanttChart({ projects, onProjectPress, onTaskPress }: Ga
   // Get task status color
   const getTaskStatusColor = (status: Task['status']) => {
     switch (status) {
-      case 'in_progress':
-        return '#007AFF';
-      case 'completed':
+      case 'Active':
+        return '#877ED2';
+      case 'Completed':
         return '#34C759';
-      case 'not_started':
+      case 'To Do':
         return '#8E8E93';
-      case 'on_hold':
+      case 'On Hold':
         return '#FF9500';
+      case 'Cancelled':
+        return '#FF3B30';
       default:
         return '#8E8E93';
     }

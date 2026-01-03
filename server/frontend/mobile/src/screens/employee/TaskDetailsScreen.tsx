@@ -38,7 +38,7 @@ interface TaskDetails {
   projectName: string;
   clientName: string;
   location: string;
-  status: 'todo' | 'in_progress' | 'done' | 'overdue';
+  status: 'To Do' | 'Active' | 'Completed' | 'Cancelled' | 'On Hold';
   assignedDate: string;
   dueDate: string;
   isOverdue: boolean;
@@ -97,6 +97,7 @@ export default function TaskDetailsScreen() {
   const [productivityView, setProductivityView] = useState<'week' | 'month'>('week');
   const [chartView, setChartView] = useState<'bar' | 'list'>('bar');
   const [showProductivityReportModal, setShowProductivityReportModal] = useState(false);
+  const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     const today = new Date();
     const day = today.getDay();
@@ -280,7 +281,7 @@ interface Photo {
     projectName: 'Loading...',
     clientName: 'Loading...',
     location: 'Loading...',
-    status: 'todo',
+    status: 'To Do',
     assignedDate: '',
     dueDate: '',
     isOverdue: false,
@@ -463,7 +464,7 @@ interface Photo {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         dueDate.setHours(0, 0, 0, 0);
-        const isOverdue = taskData.status !== 'done' && dueDate < today;
+        const isOverdue = taskData.status !== 'Completed' && dueDate < today;
         const delayDays = isOverdue ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
         const remainingDays = !isOverdue 
           ? Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
@@ -475,7 +476,7 @@ interface Photo {
           projectName: taskData.project_name || 'Unknown Project',
           clientName: taskData.client_name || 'No Client',
           location: taskData.location || 'No Location',
-          status: taskData.status || 'todo',
+          status: taskData.status || 'To Do',
           assignedDate: formatDisplayDate(taskData.created_at),
           dueDate: formatDisplayDate(taskData.due_date),
           isOverdue,
@@ -1629,20 +1630,22 @@ interface Photo {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'done': return '#34C759';
-      case 'in_progress': return '#877ED2';
-      case 'overdue': return '#FF3B30';
-      case 'todo': return '#8E8E93';
+      case 'Completed': return '#34C759';
+      case 'Active': return '#877ED2';
+      case 'Cancelled': return '#FF3B30';
+      case 'On Hold': return '#FF9500';
+      case 'To Do': return '#8E8E93';
       default: return '#8E8E93';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'done': return 'Completed';
-      case 'in_progress': return 'In Progress';
-      case 'overdue': return 'Overdue';
-      case 'todo': return 'To Do';
+      case 'Completed': return 'Completed';
+      case 'Active': return 'Active';
+      case 'Cancelled': return 'Cancelled';
+      case 'On Hold': return 'On Hold';
+      case 'To Do': return 'To Do';
       default: return status;
     }
   };
@@ -1685,9 +1688,9 @@ interface Photo {
   // Calculate progress percentage (for progress bar)
   const getProgressPercentage = () => {
     // Default to 75% if in progress, adjust based on actual progress if available
-    if (taskDetails.status === 'in_progress') {
+    if (taskDetails.status === 'Active') {
       return 75;
-    } else if (taskDetails.status === 'done') {
+    } else if (taskDetails.status === 'Completed') {
       return 100;
     }
     return 0;
@@ -1704,11 +1707,17 @@ interface Photo {
     
     const dayAbbreviations = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(sunday);
       d.setDate(sunday.getDate() + i);
       const day = dayAbbreviations[d.getDay()];
       const date = d.getDate().toString();
+      const month = monthNames[d.getMonth()];
+      const year = d.getFullYear();
+      // Full date format for list view: "Sun, 06 Nov 2025"
+      const fullDate = `${day}, ${date.padStart(2, '0')} ${month} ${year}`;
       
       // Calculate hours from time entries for this day using work_date
       const dayStr = d.toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -1732,7 +1741,7 @@ interface Photo {
       const totalSeconds = dayEntries.reduce((sum, entry) => sum + entry.durationSeconds, 0);
       const hours = totalSeconds / 3600;
       
-      return { day, date, hours: Math.round(hours * 10) / 10 }; // Round to 1 decimal place
+      return { day, date, hours: Math.round(hours * 10) / 10, fullDate }; // Round to 1 decimal place
     });
   };
 
@@ -1742,29 +1751,35 @@ interface Photo {
     const lastDay = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth() + 1, 0);
     const daysInMonth = lastDay.getDate();
     
-    const dayAbbreviations = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthName = monthNames[currentWeekStart.getMonth()];
     
     return Array.from({ length: daysInMonth }).map((_, i) => {
       const d = new Date(firstDay);
       d.setDate(i + 1);
-      const day = dayAbbreviations[d.getDay()];
-      const date = d.getDate().toString();
+      const dayOfMonth = d.getDate();
+      const dateLabel = `${dayOfMonth} ${monthName}`; // e.g., "3 Nov"
       
       // Calculate hours from time entries for this day using work_date
       const dayStr = d.toISOString().split('T')[0]; // YYYY-MM-DD format
       
       // Filter time entries for this day
       const dayEntries = timeEntries.filter(entry => {
+        // Check workDate first - it may be ISO timestamp like "2025-12-07T18:30:00.000Z"
         if (entry.workDate) {
-          return entry.workDate === dayStr;
+          // Extract just the date part from ISO timestamp
+          const entryWorkDate = entry.workDate.split('T')[0];
+          return entryWorkDate === dayStr;
         }
         // Fallback to parsing the date string if workDate is not available
         try {
-          // Try to parse the formatted date string (e.g., "02-11-2025, Mon")
-          const dateParts = entry.date.split(',')[0].trim().split('-');
-          if (dateParts.length === 3) {
-            // Format: DD-MM-YYYY
-            const entryDate = new Date(parseInt(dateParts[2]), parseInt(dateParts[1]) - 1, parseInt(dateParts[0]));
+          // Try to parse the formatted date string (e.g., "02-11-2025, Mon" or "Mon, 08-12-2025")
+          const dateStr = entry.date;
+          // Look for DD-MM-YYYY pattern anywhere in the string
+          const match = dateStr.match(/(\d{2})-(\d{2})-(\d{4})/);
+          if (match) {
+            const [_, day, month, year] = match;
+            const entryDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
             const entryDayStr = entryDate.toISOString().split('T')[0];
             return entryDayStr === dayStr;
           }
@@ -1781,11 +1796,71 @@ interface Photo {
       const totalSeconds = dayEntries.reduce((sum, entry) => sum + entry.durationSeconds, 0);
       const hours = totalSeconds / 3600;
       
-      return { day, date, hours: Math.round(hours * 10) / 10 };
+      // Show label only at exact intervals: 3rd, 9th, 15th, 21st, 27th
+      const showLabel = dayOfMonth === 3 || dayOfMonth === 9 || dayOfMonth === 15 || dayOfMonth === 21 || dayOfMonth === 27;
+      
+      return { day: dateLabel, date: dayOfMonth.toString(), hours: Math.round(hours * 10) / 10, showLabel, fullDate: dateLabel };
     });
   };
 
+  // Get weekly grouped data for month list view
+  const getMonthlyWeeklyData = () => {
+    const firstDay = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth(), 1);
+    const lastDay = new Date(currentWeekStart.getFullYear(), currentWeekStart.getMonth() + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthName = monthNames[currentWeekStart.getMonth()];
+    
+    const weeks: { weekLabel: string; totalHours: number; startDate: string; endDate: string }[] = [];
+    let currentWeekStartDay = 1;
+    
+    while (currentWeekStartDay <= daysInMonth) {
+      const weekStartDate = new Date(firstDay.getFullYear(), firstDay.getMonth(), currentWeekStartDay);
+      // Find the end of the week (Saturday) or end of month
+      const daysUntilSaturday = 6 - weekStartDate.getDay();
+      let weekEndDay = Math.min(currentWeekStartDay + daysUntilSaturday, daysInMonth);
+      const weekEndDate = new Date(firstDay.getFullYear(), firstDay.getMonth(), weekEndDay);
+      
+      // Calculate total hours for this week
+      let weekTotalHours = 0;
+      for (let d = currentWeekStartDay; d <= weekEndDay; d++) {
+        const dayDate = new Date(firstDay.getFullYear(), firstDay.getMonth(), d);
+        const dayStr = dayDate.toISOString().split('T')[0];
+        
+        const dayEntries = timeEntries.filter(entry => {
+          if (entry.workDate) {
+            const entryWorkDate = entry.workDate.split('T')[0];
+            return entryWorkDate === dayStr;
+          }
+          return false;
+        });
+        
+        const totalSeconds = dayEntries.reduce((sum, entry) => sum + entry.durationSeconds, 0);
+        weekTotalHours += totalSeconds / 3600;
+      }
+      
+      // Format: "06 Nov - 12 Nov 2025"
+      const startDateStr = `${currentWeekStartDay.toString().padStart(2, '0')} ${monthName}`;
+      const endDateStr = `${weekEndDay.toString().padStart(2, '0')} ${monthName} ${weekEndDate.getFullYear()}`;
+      const weekLabel = `${startDateStr} - ${endDateStr}`;
+      
+      weeks.push({
+        weekLabel,
+        totalHours: Math.round(weekTotalHours * 10) / 10,
+        startDate: startDateStr,
+        endDate: endDateStr,
+      });
+      
+      // Move to next week (next Sunday)
+      currentWeekStartDay = weekEndDay + 1;
+    }
+    
+    return weeks;
+  };
+
   const productivityData = getProductivityData();
+  const monthlyWeeklyData = productivityView === 'month' ? getMonthlyWeeklyData() : [];
   const maxHours = Math.max(...productivityData.map(d => d.hours), 1);
 
   // Format elapsed time for display (HH:MM format)
@@ -2108,22 +2183,6 @@ interface Photo {
             </View>
           </View>
           <Text style={styles.bottomNavLabel}>Status</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.bottomNavItem}
-          onPress={() => {
-            // Navigate to add task or show add task modal
-            Alert.alert('Add Task', 'Add new task functionality');
-          }}
-        >
-          <View style={styles.bottomNavIcon}>
-            <Ionicons name="clipboard-outline" size={24} color="#877ED2" />
-            <View style={styles.bottomNavBadge}>
-              <Text style={styles.bottomNavBadgeText}>+</Text>
-            </View>
-          </View>
-          <Text style={styles.bottomNavLabel}>Add Task</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -3033,17 +3092,32 @@ interface Photo {
 
                   {/* Bar Chart */}
                   {chartView === 'bar' && (
-                    <View style={styles.productivityChartArea}>
-                      {/* Horizontal Grid Lines - 9 lines aligned with bar height (200px) */}
-                      <View style={styles.productivityGridLines}>
+                    <View style={[
+                      styles.productivityChartArea,
+                      productivityView === 'month' && styles.productivityChartAreaMonth
+                    ]}>
+                      {/* Horizontal Grid Lines - 9 lines representing 0-8 hours */}
+                      <View style={[
+                        styles.productivityGridLines,
+                        productivityView === 'month' && styles.productivityGridLinesMonth
+                      ]}>
+                        {/* 8hrs - top */}
                         <View style={styles.productivityGridLine} />
+                        {/* 7hrs */}
                         <View style={styles.productivityGridLine} />
+                        {/* 6hrs */}
                         <View style={styles.productivityGridLine} />
+                        {/* 5hrs */}
                         <View style={styles.productivityGridLine} />
+                        {/* 4hrs */}
                         <View style={styles.productivityGridLine} />
+                        {/* 3hrs */}
                         <View style={styles.productivityGridLine} />
+                        {/* 2hrs */}
                         <View style={styles.productivityGridLine} />
+                        {/* 1hr */}
                         <View style={styles.productivityGridLine} />
+                        {/* 0hrs - bottom (base of bars) */}
                         <View style={styles.productivityGridLine} />
                       </View>
                       
@@ -3052,43 +3126,90 @@ interface Photo {
                         showsHorizontalScrollIndicator={false}
                         style={styles.productivityChartScrollContainer}
                         contentContainerStyle={[
-                          productivityView === 'week' ? styles.productivityChartScrollContentWeek : styles.productivityChartScrollContent,
+                          productivityView === 'week' ? styles.productivityChartScrollContentWeek : styles.productivityChartScrollContentMonth,
                           productivityView === 'week' && styles.productivityChartScrollContentCentered
                         ]}
                         scrollEnabled={productivityView !== 'week'}
                       >
                         <View style={[styles.productivityChartContainer, productivityView === 'week' && { width: '100%' }]}>
-                          <View style={[styles.productivityChart, productivityView === 'week' && { justifyContent: 'space-between', width: '100%' }]}>
+                          <View style={[
+                            styles.productivityChart, 
+                            productivityView === 'week' && { justifyContent: 'space-between', width: '100%' },
+                            productivityView === 'month' && styles.productivityChartMonth
+                          ]}>
+                            {(() => {
+                              // Debug log
+                              console.log('=== Productivity Debug ===');
+                              console.log('View:', productivityView);
+                              console.log('Month:', currentWeekStart.toLocaleDateString());
+                              console.log('Data length:', productivityData.length);
+                              console.log('Max hours:', maxHours);
+                              console.log('Entries with hours:', productivityData.filter(d => d.hours > 0));
+                              console.log('Time entries:', timeEntries.length);
+                              return null;
+                            })()}
                             {productivityData.map((item, index) => {
-                              const barHeightPercent = maxHours > 0 && item.hours > 0 ? (item.hours / maxHours) * 100 : 0;
-                              // Calculate actual pixel height (200px is the full bar height)
-                              const fillHeight = item.hours > 0 ? (barHeightPercent / 100) * 200 : 4;
-                              const fillColor = item.hours > 0 ? '#877ED2' : '#E5E5EA';
+                              // Use fixed 8-hour scale: 0hrs at bottom, 8hrs at top
+                              const maxBarHeight = productivityView === 'month' ? 180 : 200;
+                              const maxHoursScale = 8; // Fixed 8-hour scale
+                              const barHeightPercent = item.hours > 0 ? (item.hours / maxHoursScale) * 100 : 0;
+                              const fillHeight = item.hours > 0 ? Math.min((barHeightPercent / 100) * maxBarHeight, maxBarHeight) : 0;
+                              const isSelected = selectedBarIndex === index && productivityView === 'month';
+                              const showLabel = productivityView === 'week' || (item as any).showLabel;
                               
                               return (
-                                <View key={index} style={styles.productivityBarColumn}>
-                                  {/* Hour Value Badge */}
-                                  <View style={[styles.productivityBarValueBadge, item.hours === 0 && styles.productivityBarValueBadgeZero]}>
-                                    <Text style={[styles.productivityBarValue, item.hours === 0 && styles.productivityBarValueZero]}>{item.hours}</Text>
+                                <TouchableOpacity 
+                                  key={index} 
+                                  style={[
+                                    styles.productivityBarColumn,
+                                    productivityView === 'month' && styles.productivityBarColumnMonth
+                                  ]}
+                                  activeOpacity={0.7}
+                                  onPress={() => {
+                                    if (productivityView === 'month') {
+                                      setSelectedBarIndex(isSelected ? null : index);
+                                    }
+                                  }}
+                                >
+                                  {/* Tooltip for selected bar in month view */}
+                                  {isSelected && item.hours > 0 && (
+                                    <View style={styles.productivityBarTooltip}>
+                                      <Text style={styles.productivityBarTooltipHours}>{item.hours}hrs</Text>
+                                      <Text style={styles.productivityBarTooltipDate}>{(item as any).fullDate || item.day}</Text>
+                                    </View>
+                                  )}
+                                  {/* Hour Value Badge - Only show for week view */}
+                                  {productivityView === 'week' && (
+                                    <View style={[styles.productivityBarValueBadge, item.hours === 0 && styles.productivityBarValueBadgeZero]}>
+                                      <Text style={[styles.productivityBarValue, item.hours === 0 && styles.productivityBarValueZero]}>{item.hours}</Text>
+                                    </View>
+                                  )}
+                                  <View style={[
+                                    styles.productivityBarWrapper,
+                                    productivityView === 'month' && styles.productivityBarWrapperMonth
+                                  ]}>
+                                    <View 
+                                      style={[
+                                        styles.productivityBarFill,
+                                        productivityView === 'month' && styles.productivityBarFillMonth,
+                                        { 
+                                          height: item.hours > 0 ? fillHeight : 0,
+                                          backgroundColor: '#877ED2'
+                                        }
+                                      ]} 
+                                    />
                                   </View>
-                                  <View style={styles.productivityBarWrapper}>
-                                    {item.hours > 0 && (
-                                      <View 
-                                        style={[
-                                          styles.productivityBarFill, 
-                                          { 
-                                            height: fillHeight,
-                                            backgroundColor: '#877ED2'
-                                          }
-                                        ]} 
-                                      />
-                                    )}
-                                  </View>
-                                  <View style={styles.productivityBarLabels}>
-                                    <Text style={styles.productivityBarDay}>{item.day}</Text>
-                                    <Text style={styles.productivityBarDate}>{item.date}</Text>
-                                  </View>
-                                </View>
+                                  {/* Labels - Show for week view or at intervals for month view */}
+                                  {showLabel && productivityView === 'month' && (
+                                    <Text style={styles.productivityBarDateMonth}>{(item as any).fullDate || `${item.date}`}</Text>
+                                  )}
+                                  {productivityView === 'week' && (
+                                    <View style={styles.productivityBarLabels}>
+                                      <Text style={styles.productivityBarDay}>{item.day}</Text>
+                                      <Text style={styles.productivityBarDate}>{item.date}</Text>
+                                    </View>
+                                  )}
+                                </TouchableOpacity>
                               );
                             })}
                           </View>
@@ -3100,38 +3221,59 @@ interface Photo {
                   {/* List View */}
                   {chartView === 'list' && (
                     <View style={styles.productivityListContainer}>
-                      <ScrollView style={styles.productivityListScroll} showsVerticalScrollIndicator={false}>
-                        {productivityData.map((item, index) => {
-                          const hours = item.hours;
-                          const minutes = Math.round((hours - Math.floor(hours)) * 60);
-                          const displayHours = Math.floor(hours);
-                          
-                          return (
-                            <View key={index} style={styles.productivityListItem}>
-                              <View style={styles.productivityListItemLeft}>
-                                <View style={styles.productivityListItemDateContainer}>
-                                  <Text style={styles.productivityListItemDay}>{item.day}</Text>
-                                  <Text style={styles.productivityListItemDate}>{item.date}</Text>
-                                </View>
-                              </View>
-                              <View style={styles.productivityListItemRight}>
-                                {hours > 0 ? (
-                                  <Text style={styles.productivityListItemTime}>
-                                    {displayHours > 0 ? `${displayHours}h` : ''} {minutes > 0 ? `${minutes}m` : ''}
-                                  </Text>
-                                ) : (
-                                  <Text style={[styles.productivityListItemTime, styles.productivityListItemTimeZero]}>No time</Text>
-                                )}
-                              </View>
-                            </View>
-                          );
-                        })}
-                      </ScrollView>
+                      {/* Week View - Show individual days */}
+                      {productivityView === 'week' && productivityData.map((item, index) => {
+                        const displayHours = Math.round(item.hours);
+                        
+                        return (
+                          <View key={index} style={styles.productivityListItem}>
+                            <Text style={styles.productivityListItemFullDate}>
+                              {(item as any).fullDate || `${item.day}, ${item.date}`}
+                            </Text>
+                            <Text style={styles.productivityListItemDots} numberOfLines={1}>
+                              {'·'.repeat(100)}
+                            </Text>
+                            <Text style={[
+                              styles.productivityListItemHours,
+                              displayHours === 0 && styles.productivityListItemHoursZero
+                            ]}>
+                              {displayHours}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                      
+                      {/* Month View - Show weeks grouped */}
+                      {productivityView === 'month' && monthlyWeeklyData.map((week, index) => {
+                        const displayHours = Math.round(week.totalHours);
+                        
+                        return (
+                          <View key={index} style={styles.productivityListItem}>
+                            <Text style={styles.productivityListItemFullDate}>
+                              {week.weekLabel}
+                            </Text>
+                            <Text style={styles.productivityListItemDots} numberOfLines={1}>
+                              {'·'.repeat(100)}
+                            </Text>
+                            <Text style={[
+                              styles.productivityListItemHours,
+                              displayHours === 0 && styles.productivityListItemHoursZero
+                            ]}>
+                              {displayHours}
+                            </Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
 
                   {/* Summary */}
-                  <View style={styles.productivitySummary}>
+                  <View style={[
+                    styles.productivitySummary,
+                    productivityView === 'month' && chartView === 'bar' && styles.productivitySummaryMonth,
+                    productivityView === 'week' && chartView === 'list' && styles.productivitySummaryWeekList,
+                    productivityView === 'month' && chartView === 'list' && styles.productivitySummaryMonthList
+                  ]}>
                     <View style={styles.productivitySummaryLeft}>
                       <Text style={styles.productivitySummaryLabel}>Time worked</Text>
                       <View style={styles.productivitySummaryHours}>
@@ -3677,6 +3819,10 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     paddingBottom: 20,
   },
+  productivityChartAreaMonth: {
+    height: 280,
+    paddingBottom: 30,
+  },
   productivityGridLines: {
     position: 'absolute',
     top: 36, // Positioned to align with top of bars (badge height ~28px + marginBottom 8px = 36px)
@@ -3685,6 +3831,11 @@ const styles = StyleSheet.create({
     height: 200, // Same as bar height (productivityBarWrapper height)
     justifyContent: 'space-between',
     zIndex: 0,
+  },
+  productivityGridLinesMonth: {
+    top: 50, // Align with top of month view bars (adjusted for month chart layout)
+    bottom: 42, // Align bottom grid line with base of bars
+    height: 180, // Match bar wrapper height
   },
   productivityGridLine: {
     height: 1,
@@ -3771,11 +3922,98 @@ const styles = StyleSheet.create({
     color: '#6F67CC',
     textAlign: 'center',
   },
+  productivityBarDateMonth: {
+    fontSize: 9,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#877ED2',
+    textAlign: 'center',
+    position: 'absolute',
+    bottom: -20,
+    width: 40,
+    left: -17,
+  },
+  productivityBarFillMonth: {
+    width: 6,
+    borderRadius: 20,
+  },
+  productivityChartMonth: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    height: 260,
+    paddingBottom: 20,
+  },
+  productivityBarColumnMonth: {
+    width: 7,
+    minWidth: 8,
+    marginHorizontal: 1.5,
+    paddingHorizontal: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    position: 'relative',
+  },
+  productivityBarWrapperMonth: {
+    width: 6,
+    height: 180,
+    marginBottom: 0,
+    borderRadius: 20,
+    backgroundColor: '#E8E7ED',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  productivityBarTooltip: {
+    position: 'absolute',
+    top: -45,
+    left: -20,
+    backgroundColor: '#404040',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    zIndex: 1000,
+    alignItems: 'center',
+    minWidth: 45,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  productivityBarTooltipHours: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontFamily: typography.families.semibold,
+    color: '#FFFFFF',
+    lineHeight: 14,
+  },
+  productivityBarTooltipDate: {
+    fontSize: 9,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#AAAAAA',
+    lineHeight: 12,
+  },
+  productivityChartScrollContentMonth: {
+    // paddingHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 12,
+  },
   productivitySummary: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
     paddingTop: 10,
     gap: 40,
+  },
+  productivitySummaryMonth: {
+    marginTop: -20,
+  },
+  productivitySummaryWeekList: {
+    marginTop: -5,
+    paddingTop: 5,
+  },
+  productivitySummaryMonthList: {
+    marginTop: 55,
   },
   productivitySummaryLeft: {
   },
@@ -3834,18 +4072,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   productivityListContainer: {
-    maxHeight: 300,
     marginTop: 8,
+    marginBottom: 8,
   },
   productivityListScroll: {
     flex: 1,
   },
   productivityListItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  productivityListItemFullDate: {
+    fontSize: 14,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#877ED2',
+  },
+  productivityListItemDots: {
+    flex: 1,
+    marginHorizontal: 4,
+    color: '#D1D1D6',
+    fontSize: 12,
+    letterSpacing: 2,
+    overflow: 'hidden',
+  },
+  productivityListItemHours: {
+    fontSize: 14,
+    fontWeight: '400',
+    fontFamily: typography.families.regular,
+    color: '#000000',
+    minWidth: 24,
+    textAlign: 'right',
+  },
+  productivityListItemHoursZero: {
+    color: '#8E8E93',
   },
   productivityListItemLeft: {
     flex: 1,

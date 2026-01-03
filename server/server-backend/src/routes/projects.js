@@ -53,7 +53,7 @@ router.get('/', async (req, res) => {
 
     const list = await pool.query(
       `SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
-              p.location, p.priority, p.complexity, p.team_size, p.progress, p.risk_level, p.estimated_hours, p.technologies,
+              p.location, p.priority, p.team_size, p.progress, p.estimated_hours,
               p.created_at, p.updated_at, c.name as client_name, c.id as client_id
        FROM projects p
        JOIN clients c ON p.client_id = c.id
@@ -111,7 +111,7 @@ router.get('/assigned', authenticateToken, async (req, res) => {
     // Get distinct projects where employee has tasks assigned OR is a team member
     const result = await pool.query(
       `SELECT DISTINCT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget,
-              p.location, p.priority, p.complexity, p.team_size, p.progress, p.risk_level, p.estimated_hours, p.technologies,
+              p.location, p.priority, p.team_size, p.progress, p.estimated_hours,
               p.created_at, p.updated_at, c.name as client_name, c.id as client_id
        FROM projects p
        JOIN clients c ON p.client_id = c.id
@@ -144,7 +144,7 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const result = await pool.query(
       `SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
-              p.location, p.priority, p.complexity, p.team_size, p.progress, p.risk_level, p.estimated_hours, p.technologies,
+              p.location, p.priority, p.team_size, p.progress, p.estimated_hours,
               p.created_at, p.updated_at, c.name as client_name, c.id as client_id
        FROM projects p
        JOIN clients c ON p.client_id = c.id

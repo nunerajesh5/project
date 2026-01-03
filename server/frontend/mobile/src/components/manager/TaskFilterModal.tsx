@@ -29,7 +29,7 @@ export default function TaskFilterModal({
 }: TaskFilterModalProps) {
   const [filter, setFilter] = useState<TaskFilter>(currentFilter);
 
-  const statusOptions = ['todo', 'in_progress', 'done', 'overdue'];
+  const statusOptions = ['To Do', 'Active', 'Completed', 'Cancelled', 'On Hold'];
   const priorityOptions = ['low', 'medium', 'high', 'critical'];
   const dueDateOptions = ['today', 'tomorrow', 'this_week', 'next_week', 'this_month', 'overdue'];
   const createdDateOptions = ['today', 'yesterday', 'this_week', 'last_week', 'this_month', 'last_month'];
@@ -125,10 +125,11 @@ export default function TaskFilterModal({
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'todo': return 'To Do';
-      case 'in_progress': return 'In Progress';
-      case 'done': return 'Done';
-      case 'overdue': return 'Overdue';
+      case 'To Do': return 'To Do';
+      case 'Active': return 'Active';
+      case 'Completed': return 'Completed';
+      case 'Cancelled': return 'Cancelled';
+      case 'On Hold': return 'On Hold';
       default: return status;
     }
   };
