@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, Keyboard } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,10 +8,12 @@ import AppHeader from '../../components/shared/AppHeader';
 import Card from '../../components/shared/Card';
 import { joinOrganization, resolveOrganizationByCode } from '../../api/endpoints';
 
+const CODE_LENGTH = 6;
+
 export default function ScanOrganizationScreen({ navigation }: any) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<'scan' | 'manual'>('scan'); // 'scan' or 'manual'
-  const [code, setCode] = useState('');
+  const [codeDigits, setCodeDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [orgName, setOrgName] = useState('');
   const [codeVerified, setCodeVerified] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -23,6 +25,34 @@ export default function ScanOrganizationScreen({ navigation }: any) {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  
+  // Refs for digit inputs
+  const inputRefs = useRef<(TextInput | null)[]>([]);
+  
+  // Get full code from digits
+  const code = codeDigits.join('');
+  
+  // Handle digit input change
+  const handleDigitChange = (text: string, index: number) => {
+    // Only allow numbers
+    const digit = text.replace(/[^0-9]/g, '').slice(-1);
+    
+    const newDigits = [...codeDigits];
+    newDigits[index] = digit;
+    setCodeDigits(newDigits);
+    
+    // Auto-focus next input
+    if (digit && index < CODE_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+  
+  // Handle backspace
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace' && !codeDigits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
 
   // Handle QR code scan
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
@@ -30,7 +60,9 @@ export default function ScanOrganizationScreen({ navigation }: any) {
     setScanned(true);
     
     const scannedCode = data.trim();
-    setCode(scannedCode);
+    // Set digits from scanned code
+    const digits = scannedCode.slice(0, CODE_LENGTH).split('');
+    setCodeDigits([...digits, ...Array(CODE_LENGTH - digits.length).fill('')]);
     
     // Automatically verify the scanned code
     setVerifying(true);
@@ -51,18 +83,19 @@ export default function ScanOrganizationScreen({ navigation }: any) {
   };
 
   const handleVerifyCode = async () => {
-    if (!code.trim()) {
-      Alert.alert('Validation', 'Please enter the join code');
+    if (code.length !== CODE_LENGTH) {
+      Alert.alert('Validation', 'Please enter the complete 6-digit code');
       return;
     }
+    Keyboard.dismiss();
     setVerifying(true);
     try {
-      const res = await resolveOrganizationByCode(code.trim());
+      const res = await resolveOrganizationByCode(code);
       setOrgName(res.organization?.name || '');
       // Navigate to RegisterScreen with the organization code
       navigation.replace('Auth', {
         screen: 'Register',
-        params: { organizationCode: code.trim(), organizationName: res.organization?.name }
+        params: { organizationCode: code, organizationName: res.organization?.name }
       });
     } catch {
       Alert.alert('Invalid Code', 'We could not find an organization for this code.');
@@ -127,8 +160,14 @@ export default function ScanOrganizationScreen({ navigation }: any) {
     }
     setMode('scan');
     setScanned(false);
-    setCode('');
+    setCodeDigits(Array(CODE_LENGTH).fill(''));
     setCodeVerified(false);
+  };
+  
+  // Clear all digits
+  const handleClearCode = () => {
+    setCodeDigits(Array(CODE_LENGTH).fill(''));
+    inputRefs.current[0]?.focus();
   };
 
   // Render QR Scanner View
@@ -207,6 +246,7 @@ export default function ScanOrganizationScreen({ navigation }: any) {
             onPress={() => {
               setMode('manual');
               setScanned(false);
+              setCodeDigits(Array(CODE_LENGTH).fill(''));
             }}
           >
             <Text style={styles.scannerPrimaryButtonText}>Enter Code Manually</Text>
@@ -273,7 +313,7 @@ export default function ScanOrganizationScreen({ navigation }: any) {
             style={styles.link} 
             onPress={() => {
               setCodeVerified(false);
-              setCode('');
+              setCodeDigits(Array(CODE_LENGTH).fill(''));
               setOrgName('');
             }}
           >
@@ -284,49 +324,74 @@ export default function ScanOrganizationScreen({ navigation }: any) {
     }
 
     return (
-      <Card style={styles.card}>
-        <Text style={styles.title}>{t('organization.enter_organization_code')}</Text>
-        <Text style={styles.subtitle}>
-          {mode === 'manual' 
-            ? t('organization.scan_to_link')
-            : t('organization.enter_organization_code')}
-        </Text>
+      <View style={styles.manualEntryContainer}>
+        {/* Top empty area with dismiss button */}
+        <View style={styles.topArea}>
+          <TouchableOpacity 
+            style={styles.dismissButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="close" size={24} color="#999" />
+          </TouchableOpacity>
+        </View>
         
-        <Text style={styles.label}>{t('organization.organization_code')} *</Text>
-        <TextInput 
-          style={styles.input} 
-          value={code} 
-          onChangeText={setCode}
-          placeholder={t('organization.organization_code')}
-          autoCapitalize="characters"
-        />
-        
-        <TouchableOpacity 
-          style={[styles.button, verifying && { opacity: 0.6 }]} 
-          onPress={handleVerifyCode} 
-          disabled={verifying || !code.trim()}
-        >
-          <Text style={styles.buttonText}>
-            {verifying ? t('common.loading') : t('organization.verify_code')}
-          </Text>
-        </TouchableOpacity>
+        {/* Bottom card with code entry */}
+        <View style={styles.codeEntryCard}>
+          <Text style={styles.codeEntryTitle}>Enter Organization Code</Text>
+          <Text style={styles.codeEntrySubtitle}>Code valid for 12 hours</Text>
+          
+          {/* OTP-style digit inputs */}
+          <View style={styles.digitContainer}>
+            {codeDigits.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => { inputRefs.current[index] = ref; }}
+                style={[
+                  styles.digitInput,
+                  digit ? styles.digitInputFilled : {},
+                  index === codeDigits.findIndex(d => d === '') ? styles.digitInputActive : {}
+                ]}
+                value={digit}
+                onChangeText={(text) => handleDigitChange(text, index)}
+                onKeyPress={(e) => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={1}
+                selectTextOnFocus
+              />
+            ))}
+          </View>
+          
+          {/* Verify Code Button */}
+          <TouchableOpacity 
+            style={[
+              styles.verifyButton, 
+              (verifying || code.length !== CODE_LENGTH) && styles.verifyButtonDisabled
+            ]} 
+            onPress={handleVerifyCode} 
+            disabled={verifying || code.length !== CODE_LENGTH}
+          >
+            <Text style={styles.verifyButtonText}>
+              {verifying ? 'Verifying...' : 'Verify Code'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.switchModeButton} 
-          onPress={handleSwitchToScan}
-        >
-          <Ionicons name="qr-code-outline" size={20} color="#007AFF" />
-          <Text style={styles.switchModeText}>{t('organization.scan_qr_code')}</Text>
-        </TouchableOpacity>
-      </Card>
+          {/* Scan QR Code Button */}
+          <TouchableOpacity 
+            style={styles.scanQRButton} 
+            onPress={handleSwitchToScan}
+          >
+            <Text style={styles.scanQRButtonText}>Scan QR Code</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     );
   };
 
   return (
     <SafeAreaWrapper>
       <AppHeader
-        title="Scan QR Code"
-        backgroundColor="#111111"
+        title={mode === 'manual' ? 'Create Account' : 'Scan QR Code'}
+        backgroundColor="#877ED2"
         leftAction={{
           icon: '‹',
           onPress: () => navigation.goBack(),
@@ -348,6 +413,105 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  // Manual Entry OTP-style styles
+  manualEntryContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f8',
+  },
+  topArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f8',
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+    paddingRight: 20,
+    paddingBottom: 20,
+  },
+  dismissButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e0e0e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  codeEntryCard: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  codeEntryTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  codeEntrySubtitle: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 32,
+  },
+  digitContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  digitInput: {
+    width: 48,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#f8f8f8',
+    fontSize: 24,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#333',
+  },
+  digitInputFilled: {
+    borderColor: '#877ED2',
+    backgroundColor: '#fff',
+  },
+  digitInputActive: {
+    borderColor: '#877ED2',
+    borderWidth: 2,
+    backgroundColor: '#fff',
+  },
+  verifyButton: {
+    backgroundColor: '#877ED2',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  verifyButtonDisabled: {
+    opacity: 0.6,
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  scanQRButton: {
+    borderWidth: 1,
+    borderColor: '#877ED2',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  scanQRButtonText: {
+    color: '#877ED2',
+    fontWeight: '600',
+    fontSize: 16,
   },
   card: {
     margin: 16,

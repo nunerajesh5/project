@@ -31,27 +31,11 @@ router.get('/', async (req, res) => {
     let where = 'WHERE 1=1';
     const params = [];
     
-    // If user is NOT admin, only show projects they're a team member of
-    if (userRole !== 'admin' && userEmail) {
-      // Get employee ID from user email
-      const employeeResult = await pool.query(
-        'SELECT id FROM employees WHERE email = $1',
-        [userEmail]
-      );
-      
-      if (employeeResult.rows.length > 0) {
-        const employeeId = employeeResult.rows[0].id;
-        params.push(employeeId);
-        where += ` AND p.id IN (
-          SELECT project_id FROM project_team_memberships WHERE employee_id = $${params.length}
-        )`;
-        console.log(`[GET /api/projects] ${userRole} filter: employee_id=${employeeId}`);
-      }
-    }
+    // Filter projects based on search and status
     
     if (search) {
       params.push(`%${search.toLowerCase()}%`);
-      where += ` AND (LOWER(p.name) LIKE $${params.length} OR LOWER(p.description) LIKE $${params.length})`;
+      where += ` AND (LOWER(p.project_name) LIKE $${params.length} OR LOWER(p.description) LIKE $${params.length})`;
     }
     if (status) {
       params.push(status.toLowerCase());
@@ -63,11 +47,11 @@ router.get('/', async (req, res) => {
     }
 
     const list = await pool.query(
-      `SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
-              p.location, p.priority, p.team_size, p.progress, p.estimated_hours,
-              p.created_at, p.updated_at, c.name as client_name, c.id as client_id
+      `SELECT p.project_id as id, p.project_name as name, p.description, p.status, p.start_date, p.end_date, p.estimated_value as budget, 
+              p.project_location as location, NULL as priority, NULL as team_size, NULL as progress, NULL as estimated_hours,
+              p.created_at, p.updated_at, COALESCE(c.first_name || ' ' || c.last_name, 'Unknown Client') as client_name, p.client_id as client_id
        FROM projects p
-       JOIN clients c ON p.client_id = c.id
+       LEFT JOIN clients c ON p.client_id = c.client_id
        ${where}
        ORDER BY p.created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
@@ -77,10 +61,6 @@ router.get('/', async (req, res) => {
     const count = await pool.query(`SELECT COUNT(*) as count FROM projects p ${where}`, params);
     if (clientId) {
       console.log(`[GET /api/projects] clientId=${clientId} -> ${list.rows.length} projects`);
-    }
-    
-    if (userRole !== 'admin' && userEmail) {
-      console.log(`[GET /api/projects] ${userRole} ${userEmail} -> ${list.rows.length} projects (filtered by team membership)`);
     }
     
     res.json({ 
@@ -106,10 +86,10 @@ router.get('/assigned', authenticateToken, async (req, res) => {
     
     // Find employee by email (since users table ID != employees table ID)
     let employeeId = userId;
-    const empCheck = await pool.query('SELECT id FROM employees WHERE id = $1', [userId]);
+    const empCheck = await pool.query('SELECT user_id as id FROM users WHERE user_id = $1', [userId]);
     
     if (empCheck.rows.length === 0 && userEmail) {
-      const empByEmail = await pool.query('SELECT id FROM employees WHERE email = $1', [userEmail]);
+      const empByEmail = await pool.query('SELECT user_id as id FROM users WHERE email_id = $1', [userEmail]);
       if (empByEmail.rows.length > 0) {
         employeeId = empByEmail.rows[0].id;
         console.log(`✅ Found employee by email: ${userEmail} -> ${employeeId}`);
@@ -121,27 +101,22 @@ router.get('/assigned', authenticateToken, async (req, res) => {
     
     // Get distinct projects where employee has tasks assigned OR is a team member
     const result = await pool.query(
-      `SELECT DISTINCT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget,
-              p.location, p.priority, p.team_size, p.progress, p.estimated_hours,
-              p.created_at, p.updated_at, c.name as client_name, c.id as client_id
+      `SELECT DISTINCT p.project_id as id, p.project_name as name, p.description, p.status, p.start_date, p.end_date, p.estimated_value as budget,
+              p.project_location as location, NULL as priority, NULL as team_size, NULL as progress, NULL as estimated_hours,
+              p.created_at, p.updated_at, COALESCE(c.first_name || ' ' || c.last_name, 'Unknown Client') as client_name, p.client_id as client_id
        FROM projects p
-       JOIN clients c ON p.client_id = c.id
-       WHERE p.id IN (
-         -- Projects where employee has assigned tasks
+       LEFT JOIN clients c ON p.client_id = c.client_id
+       WHERE p.project_id IN (
+         -- Projects where employee has assigned tasks (assigned_to is JSONB array)
          SELECT DISTINCT t.project_id
          FROM tasks t
-         WHERE t.assigned_to = $1
-         UNION
-         -- Projects where employee is a team member
-         SELECT DISTINCT ptm.project_id
-         FROM project_team_memberships ptm
-         WHERE ptm.employee_id = $1
+         WHERE t.assigned_to @> to_jsonb($1::uuid)
        )
        ORDER BY p.created_at DESC`,
       [employeeId]
     );
     
-    console.log(`✅ Found ${result.rows.length} projects (with tasks or team membership) for employee ${employeeId}`);
+    console.log(`✅ Found ${result.rows.length} projects with assigned tasks for employee ${employeeId}`);
     res.json({ projects: result.rows });
   } catch (err) {
     console.error('Error getting assigned projects:', err);
@@ -154,12 +129,12 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
-              p.location, p.priority, p.team_size, p.progress, p.estimated_hours,
-              p.created_at, p.updated_at, c.name as client_name, c.id as client_id
+      `SELECT p.project_id as id, p.project_name as name, p.description, p.status, p.start_date, p.end_date, p.estimated_value as budget, 
+              p.project_location as location, NULL as priority, NULL as team_size, NULL as progress, NULL as estimated_hours,
+              p.created_at, p.updated_at, COALESCE(c.first_name || ' ' || c.last_name, 'Unknown Client') as client_name, p.client_id as client_id
        FROM projects p
-       JOIN clients c ON p.client_id = c.id
-       WHERE p.id = $1`,
+       LEFT JOIN clients c ON p.client_id = c.client_id
+       WHERE p.project_id = $1`,
       [id]
     );
     if (result.rows.length === 0) {
@@ -176,37 +151,43 @@ router.post('/', [
   body('name').trim().notEmpty().withMessage('Project name is required'),
   body('clientId').isUUID().withMessage('Valid client ID is required'),
   body('description').optional().isString(),
-  body('status').optional().isIn(['active', 'completed', 'on_hold', 'cancelled', 'pending', 'todo']),
+  body('status').optional().isIn(['active', 'completed', 'on_hold', 'cancelled', 'pending', 'todo', 'Active', 'Completed', 'On Hold', 'Cancelled', 'Pending', 'To Do']),
   body('startDate').optional().isISO8601().withMessage('Valid start date required'),
   body('endDate').optional().isISO8601().withMessage('Valid end date required'),
   body('budget').optional().isNumeric().withMessage('Budget must be a number'),
   body('location').optional().isString(),
+  body('coordinates').optional().isString(),
 ], handleValidation, async (req, res) => {
   try {
-    const { name, clientId, description, status = 'active', startDate, endDate, budget, location } = req.body;
-    console.log('[POST /api/projects] Payload:', { name, clientId, status, startDate, endDate, budget, location });
+    const { name, clientId, description, status = 'To Do', startDate, endDate, budget, location, coordinates } = req.body;
+    console.log('[POST /api/projects] Payload:', { name, clientId, status, startDate, endDate, budget, location, coordinates });
     
     // Verify client exists
-    const clientExists = await pool.query('SELECT id, name FROM clients WHERE id = $1', [clientId]);
+    const clientExists = await pool.query('SELECT client_id as id, first_name || \' \' || last_name as name FROM clients WHERE client_id = $1', [clientId]);
     if (clientExists.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
+    // Insert with correct column names: project_name, project_location, estimated_value, coordinates
     const result = await pool.query(
-      'INSERT INTO projects (name, client_id, description, status, start_date, end_date, budget, location) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [name, clientId, description, status, startDate, endDate, budget, location]
+      `INSERT INTO projects (project_name, client_id, description, status, start_date, end_date, estimated_value, project_location, coordinates) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+       RETURNING project_id as id, project_name as name, client_id, description, status, start_date, end_date, estimated_value as budget, project_location as location, coordinates, created_at, updated_at`,
+      [name, clientId, description, status, startDate, endDate, budget, location, coordinates]
     );
     console.log('[POST /api/projects] Created:', { id: result.rows[0]?.id, client_id: result.rows[0]?.client_id });
 
     // Log activity for dashboard visibility (non-blocking)
     try {
+      const actorId = req.user?.id || null;
+      const actorName = req.user?.first_name ? `${req.user.first_name} ${req.user.last_name}` : null;
       await pool.query(
-        `INSERT INTO activity_logs (type, actor_id, actor_name, project_id, project_name, description, created_at)
+        `INSERT INTO activity_logs (action_type, actor_id, actor_name, project_id, project_name, description, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
         [
           'project_created',
-          null,
-          null,
+          actorId,
+          actorName,
           result.rows[0].id,
           result.rows[0].name,
           `Project created for client: ${clientExists.rows[0].name}`
@@ -227,7 +208,7 @@ router.put('/:id', [
   body('name').optional().trim().notEmpty().withMessage('Project name cannot be empty'),
   body('clientId').optional().isUUID().withMessage('Valid client ID required'),
   body('description').optional().isString(),
-  body('status').optional().isIn(['active', 'completed', 'on_hold', 'cancelled', 'pending', 'todo']),
+  body('status').optional().isIn(['active', 'completed', 'on_hold', 'cancelled', 'pending', 'todo', 'Active', 'Completed', 'On Hold', 'Cancelled', 'Pending', 'To Do']),
   body('startDate').optional().isISO8601().withMessage('Valid start date required'),
   body('endDate').optional().isISO8601().withMessage('Valid end date required'),
   body('budget').optional().isNumeric().withMessage('Budget must be a number'),
@@ -238,14 +219,14 @@ router.put('/:id', [
     const { name, clientId, description, status, startDate, endDate, budget, location } = req.body;
     
     // Check if project exists
-    const exists = await pool.query('SELECT id FROM projects WHERE id = $1', [id]);
+    const exists = await pool.query('SELECT project_id as id FROM projects WHERE project_id = $1', [id]);
     if (exists.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Verify client exists if clientId is being updated
     if (clientId) {
-      const clientExists = await pool.query('SELECT id FROM clients WHERE id = $1', [clientId]);
+      const clientExists = await pool.query('SELECT client_id as id FROM clients WHERE client_id = $1', [clientId]);
       if (clientExists.rows.length === 0) {
         return res.status(404).json({ error: 'Client not found' });
       }
@@ -290,23 +271,24 @@ router.get('/:id/time-entries', async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Verify project exists
-    const projectExists = await pool.query('SELECT id FROM projects WHERE id = $1', [id]);
+    const projectExists = await pool.query('SELECT project_id as id FROM projects WHERE project_id = $1', [id]);
     if (projectExists.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     const result = await pool.query(
-      `SELECT te.id, te.employee_id, te.manager_id, te.start_time, te.end_time, te.duration_minutes, te.cost, te.description, te.created_at,
-              e.first_name, e.last_name, e.employee_id as emp_id
+      `SELECT te.id, te.employee_id, te.start_time, te.end_time, te.duration_minutes, te.created_at,
+              e.first_name, e.last_name, e.user_id as emp_id
        FROM time_entries te
-       JOIN employees e ON te.employee_id = e.id
-       WHERE te.project_id = $1 AND te.is_active = true
+       JOIN users e ON te.employee_id = e.user_id
+       JOIN tasks t ON te.task_id = t.task_id
+       WHERE t.project_id = $1
        ORDER BY te.start_time DESC
        LIMIT ${limit} OFFSET ${offset}`,
       [id]
     );
 
-    const count = await pool.query('SELECT COUNT(*) as count FROM time_entries WHERE project_id = $1 AND is_active = true', [id]);
+    const count = await pool.query('SELECT COUNT(*) as count FROM time_entries te JOIN tasks t ON te.task_id = t.task_id WHERE t.project_id = $1', [id]);
     res.json({ 
       timeEntries: result.rows, 
       total: parseInt(count.rows[0].count), 
@@ -327,7 +309,7 @@ router.get('/:id/tasks', async (req, res) => {
     
     console.log(`Fetching tasks for project ${id}, page: ${page}, limit: ${limit}`);
     
-    const projectExists = await pool.query('SELECT id FROM projects WHERE id = $1', [id]);
+    const projectExists = await pool.query('SELECT project_id FROM projects WHERE project_id = $1', [id]);
     if (projectExists.rows.length === 0) {
       console.log(`Project ${id} not found`);
       return res.status(404).json({ error: 'Project not found' });
@@ -335,26 +317,27 @@ router.get('/:id/tasks', async (req, res) => {
     
     console.log(`Project ${id} exists, fetching tasks...`);
     const list = await pool.query(
-      `SELECT t.id, t.project_id, t.title, t.status, t.assigned_to, t.due_date, t.created_at, t.updated_at,
-              p.name as project_name, p.status as project_status,
+      `SELECT t.task_id as id, t.project_id, t.task_name as title, t.status, t.assigned_to, 
+              t.end_date as due_date, t.created_at, t.updated_at,
+              p.project_name, p.status as project_status,
               COALESCE(
-                json_agg(
+                (SELECT json_agg(
                   json_build_object(
-                    'id', e.id,
-                    'first_name', e.first_name,
-                    'last_name', e.last_name,
-                    'email', e.email,
-                    'department', e.department
+                    'id', u.user_id,
+                    'first_name', u.first_name,
+                    'last_name', u.last_name,
+                    'email', u.email_id,
+                    'department', d.name
                   )
-                ) FILTER (WHERE e.id IS NOT NULL),
-                '[]'
+                )
+                FROM users u
+                LEFT JOIN departments d ON u.department_id = d.department_id
+                WHERE t.assigned_to @> to_jsonb(u.user_id)),
+                '[]'::json
               ) as assigned_employees
        FROM tasks t
-       JOIN projects p ON t.project_id = p.id
-       LEFT JOIN task_assignments ta ON t.id = ta.task_id
-       LEFT JOIN employees e ON ta.employee_id = e.id
+       JOIN projects p ON t.project_id = p.project_id
        WHERE t.project_id = $1
-       GROUP BY t.id, p.name, p.status
        ORDER BY t.created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
       [id]
@@ -370,6 +353,8 @@ router.get('/:id/tasks', async (req, res) => {
     res.json({ tasks: list.rows, total, page: Number(page), limit: Number(limit) });
   } catch (err) {
     console.error('Error fetching project tasks:', err);
+    console.error('Error stack:', err.stack);
+    console.error('Error detail:', err.detail);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });
@@ -380,22 +365,16 @@ router.get('/:id/team-members', async (req, res) => {
     const { id } = req.params;
     
     // Check if project exists
-    const projectExists = await pool.query('SELECT id FROM projects WHERE id = $1', [id]);
+    const projectExists = await pool.query('SELECT project_id FROM projects WHERE project_id = $1', [id]);
     if (projectExists.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Get team members who have tasks in this project (including unassigned tasks)
-    const result = await pool.query(
-      `SELECT DISTINCT e.id, e.first_name, e.last_name, e.email, e.employee_id
-       FROM employees e
-       JOIN tasks t ON e.id = t.assigned_to
-       WHERE t.project_id = $1
-       ORDER BY e.first_name, e.last_name`,
-      [id]
-    );
-
-    res.json({ teamMembers: result.rows });
+    // This endpoint is deprecated - use /api/projects/:id/team instead
+    res.status(410).json({ 
+      error: 'This endpoint is deprecated. Please use GET /api/projects/:id/team',
+      redirectTo: `/api/projects/${id}/team`
+    });
   } catch (err) {
     console.error('Error fetching project team members:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -406,21 +385,42 @@ router.get('/:id/team-members', async (req, res) => {
 router.post('/:id/tasks', [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('status').optional().isIn(['todo', 'in_progress', 'done', 'overdue']),
-  body('assignedTo').optional().isUUID(),
+  body('assignedTo').optional().isArray(),
+  body('assignedTo.*').optional().isUUID(),
   body('dueDate').optional().isISO8601(),
 ], handleValidation, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, status = 'todo', assignedTo = null, dueDate = null } = req.body;
-    const projectExists = await pool.query('SELECT id FROM projects WHERE id = $1', [id]);
-    if (projectExists.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    const { title, status = 'todo', assignedTo = [], dueDate = null } = req.body;
+    
+    // Check if project exists and get team members
+    const project = await pool.query('SELECT project_id as id, team_member_ids FROM projects WHERE project_id = $1', [id]);
+    if (project.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    
+    // Validate assignees are part of project team
+    const teamMemberIds = project.rows[0].team_member_ids || [];
+    const assignedToArray = Array.isArray(assignedTo) ? assignedTo : (assignedTo ? [assignedTo] : []);
+    
+    if (assignedToArray.length > 0) {
+      const invalidAssignees = assignedToArray.filter(userId => !teamMemberIds.includes(userId));
+      if (invalidAssignees.length > 0) {
+        return res.status(400).json({ 
+          error: 'Some assignees are not part of this project team. Please add them to the project team first.',
+          invalidAssignees,
+          projectTeamMembers: teamMemberIds
+        });
+      }
+    }
+    
     const result = await pool.query(
-      `INSERT INTO tasks (project_id, title, status, assigned_to, due_date)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, project_id, title, status, assigned_to, due_date, created_at, updated_at`,
-      [id, title, status, assignedTo, dueDate]
+      `INSERT INTO tasks (project_id, task_name, status, assigned_to, end_date)
+       VALUES ($1, $2, $3, $4::jsonb, $5) 
+       RETURNING task_id, project_id, task_name as title, status, assigned_to, end_date as due_date, created_at, updated_at`,
+      [id, title, status, JSON.stringify(assignedToArray), dueDate]
     );
     res.status(201).json({ task: result.rows[0] });
   } catch (err) {
+    console.error('Error creating task:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -431,7 +431,7 @@ router.get('/:id/stats', async (req, res) => {
     const { id } = req.params;
 
     // Verify project exists
-    const projectExists = await pool.query('SELECT id, name FROM projects WHERE id = $1', [id]);
+    const projectExists = await pool.query('SELECT project_id as id, project_name as name FROM projects WHERE project_id = $1', [id]);
     if (projectExists.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -446,28 +446,28 @@ router.get('/:id/stats', async (req, res) => {
           0 as total_cost,
           COUNT(DISTINCT te.employee_id) as unique_employees
         FROM time_entries te
-        JOIN tasks t ON te.task_id = t.id
-        WHERE t.project_id = $1 AND te.is_active = true
+        JOIN tasks t ON te.task_id = t.task_id
+        WHERE t.project_id = $1
       `, [id]),
       
       // Employee breakdown
       pool.query(`
         SELECT 
-          e.id,
-          e.employee_id,
+          e.user_id as id,
+          e.user_id as employee_id,
           e.first_name,
           e.last_name,
-          e.department,
-          e.salary_amount,
-          e.hourly_rate,
+          NULL as department,
+          NULL as salary_amount,
+          NULL as hourly_rate,
           SUM(te.duration_minutes) as total_minutes,
           0 as total_cost,
           COUNT(te.id) as entry_count
         FROM time_entries te
-        JOIN employees e ON te.employee_id = e.id
-        JOIN tasks t ON te.task_id = t.id
-        WHERE t.project_id = $1 AND te.is_active = true
-        GROUP BY e.id, e.employee_id, e.first_name, e.last_name, e.department, e.salary_amount, e.hourly_rate
+        JOIN users e ON te.employee_id = e.user_id
+        JOIN tasks t ON te.task_id = t.task_id
+        WHERE t.project_id = $1
+        GROUP BY e.user_id, e.first_name, e.last_name
         ORDER BY total_minutes DESC
       `, [id]),
       
@@ -479,8 +479,8 @@ router.get('/:id/stats', async (req, res) => {
           0 as daily_cost,
           COUNT(te.id) as daily_entries
         FROM time_entries te
-        JOIN tasks t ON te.task_id = t.id
-        WHERE t.project_id = $1 AND te.is_active = true
+        JOIN tasks t ON te.task_id = t.task_id
+        WHERE t.project_id = $1
         GROUP BY DATE(te.start_time)
         ORDER BY date DESC
         LIMIT 30
@@ -531,35 +531,60 @@ router.get('/:id/stats', async (req, res) => {
 });
 
 // ============================================
-// TEAM MANAGEMENT ENDPOINTS (new table-based)
+// TEAM MANAGEMENT ENDPOINTS (using team_member_ids array)
 // ============================================
 
-// GET /api/projects/:id/team - Get team members from project_team_memberships table
+// GET /api/projects/:id/team - Get team members using team_member_ids array
 router.get('/:id/team', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if project exists
-    const projectExists = await pool.query('SELECT id, name FROM projects WHERE id = $1', [id]);
-    if (projectExists.rows.length === 0) {
+    // Get project with team member IDs
+    const projectResult = await pool.query(
+      'SELECT project_id as id, project_name as name, team_member_ids FROM projects WHERE project_id = $1',
+      [id]
+    );
+    
+    if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Get team members from the new table
-    const result = await pool.query(
-      `SELECT ptm.id as membership_id, ptm.role, ptm.added_at,
-              e.id, e.employee_id, e.first_name, e.last_name, e.email, e.department
-       FROM project_team_memberships ptm
-       JOIN employees e ON ptm.employee_id = e.id
-       WHERE ptm.project_id = $1
-       ORDER BY ptm.added_at ASC`,
-      [id]
-    );
+    const project = projectResult.rows[0];
+    
+    // Handle team_member_ids which can be NULL, an array, or need parsing
+    let teamMemberIds = [];
+    if (project.team_member_ids) {
+      if (Array.isArray(project.team_member_ids)) {
+        teamMemberIds = project.team_member_ids;
+      } else if (typeof project.team_member_ids === 'string') {
+        try {
+          teamMemberIds = JSON.parse(project.team_member_ids);
+        } catch (e) {
+          console.warn('Failed to parse team_member_ids:', e);
+          teamMemberIds = [];
+        }
+      }
+    }
+
+    // Get team member details
+    let teamMembers = [];
+    if (teamMemberIds.length > 0) {
+      const placeholders = teamMemberIds.map((_, i) => `$${i + 1}`).join(',');
+      const result = await pool.query(
+        `SELECT u.user_id as id, u.user_id as employee_id, u.first_name, u.last_name, 
+                u.email_id as email, u.role
+         FROM users u
+         WHERE u.user_id::text IN (${placeholders})
+         ORDER BY u.first_name, u.last_name`,
+        teamMemberIds
+      );
+      teamMembers = result.rows;
+    }
 
     res.json({ 
-      project: { id: projectExists.rows[0].id, name: projectExists.rows[0].name },
-      teamMembers: result.rows,
-      teamSize: result.rows.length
+      project: { id: project.id, name: project.name },
+      teamMembers: teamMembers,
+      teamSize: teamMembers.length
     });
   } catch (err) {
     console.error('Error fetching project team:', err);
@@ -567,47 +592,50 @@ router.get('/:id/team', async (req, res) => {
   }
 });
 
-// POST /api/projects/:id/team - Add a team member to the project
+// POST /api/projects/:id/team - Add a team member using array column
 router.post('/:id/team', [
   body('employeeId').isUUID().withMessage('Valid employee ID is required'),
-  body('role').optional().isString().withMessage('Role must be a string'),
 ], handleValidation, async (req, res) => {
   try {
     const { id } = req.params;
-    const { employeeId, role = 'member' } = req.body;
+    const { employeeId } = req.body;
     
     // Check if project exists
-    const projectExists = await pool.query('SELECT id, name FROM projects WHERE id = $1', [id]);
+    const projectExists = await pool.query(
+      'SELECT project_id as id, project_name as name, team_member_ids FROM projects WHERE project_id = $1',
+      [id]
+    );
     if (projectExists.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Check if employee exists
-    const employeeExists = await pool.query('SELECT id, first_name, last_name FROM employees WHERE id = $1', [employeeId]);
+    const employeeExists = await pool.query(
+      'SELECT user_id as id, first_name, last_name FROM users WHERE user_id = $1',
+      [employeeId]
+    );
     if (employeeExists.rows.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    // Check if already a team member
-    const existingMembership = await pool.query(
-      'SELECT id FROM project_team_memberships WHERE project_id = $1 AND employee_id = $2',
-      [id, employeeId]
-    );
-    if (existingMembership.rows.length > 0) {
-      return res.status(400).json({ error: 'Employee is already a team member of this project' });
-    }
-
-    // Add team member
-    const result = await pool.query(
-      `INSERT INTO project_team_memberships (project_id, employee_id, role)
-       VALUES ($1, $2, $3)
-       RETURNING id, project_id, employee_id, role, added_at`,
-      [id, employeeId, role]
+    // Add employee to team_member_ids JSONB array (if not already present)
+    // Handle NULL case: initialize with empty array if NULL, then check/append
+    await pool.query(
+      `UPDATE projects 
+       SET team_member_ids = 
+         CASE 
+           WHEN team_member_ids IS NULL THEN $1::jsonb
+           WHEN team_member_ids @> $1::jsonb THEN team_member_ids
+           ELSE team_member_ids || $1::jsonb
+         END
+       WHERE project_id = $2`,
+      [JSON.stringify([employeeId]), id]
     );
 
     res.status(201).json({ 
       message: 'Team member added successfully',
-      membership: result.rows[0]
+      project_id: id,
+      employee_id: employeeId
     });
   } catch (err) {
     console.error('Error adding team member:', err);
@@ -620,25 +648,36 @@ router.delete('/:id/team/:employeeId', async (req, res) => {
   try {
     const { id, employeeId } = req.params;
     
-    // Check if project exists
-    const projectExists = await pool.query('SELECT id FROM projects WHERE id = $1', [id]);
-    if (projectExists.rows.length === 0) {
+    // Check if project exists and get current team members
+    const projectResult = await pool.query(
+      'SELECT project_id as id, team_member_ids FROM projects WHERE project_id = $1', 
+      [id]
+    );
+    
+    if (projectResult.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Remove team member
-    const result = await pool.query(
-      'DELETE FROM project_team_memberships WHERE project_id = $1 AND employee_id = $2 RETURNING *',
-      [id, employeeId]
-    );
-
-    if (result.rows.length === 0) {
+    const currentTeam = Array.isArray(projectResult.rows[0].team_member_ids)
+      ? projectResult.rows[0].team_member_ids
+      : (projectResult.rows[0].team_member_ids ? JSON.parse(projectResult.rows[0].team_member_ids) : []);
+    
+    // Check if employee is in the team
+    if (!currentTeam.includes(employeeId)) {
       return res.status(404).json({ error: 'Team member not found in this project' });
     }
 
+    // Remove employee from JSONB array using PostgreSQL operation
+    await pool.query(
+      `UPDATE projects 
+       SET team_member_ids = team_member_ids - $1::text
+       WHERE project_id = $2`,
+      [employeeId, id]
+    );
+
     res.json({ 
       message: 'Team member removed successfully',
-      removed: result.rows[0]
+      removedEmployeeId: employeeId
     });
   } catch (err) {
     console.error('Error removing team member:', err);

@@ -47,8 +47,8 @@ const authenticateToken = async (req, res, next) => {
       }
     }
     
-    // Fallback: check users table in project_time_manager
-    const userResult = await pool.query('SELECT id, email, first_name, last_name, role, is_active FROM users WHERE id = $1', [decoded.userId]);
+    // Fallback: check users table in project_time_manager (using email_id and user_id column names)
+    const userResult = await pool.query('SELECT user_id as id, email_id as email, first_name, last_name, role, is_active FROM users WHERE user_id = $1', [decoded.userId]);
     if (userResult.rows.length === 0 || !userResult.rows[0].is_active) {
       return res.status(401).json({ error: 'Invalid or inactive user' });
     }

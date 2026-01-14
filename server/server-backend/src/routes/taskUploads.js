@@ -58,10 +58,10 @@ router.post('/upload', upload.array('files', 10), async (req, res) => {
 
     // Verify task exists and get employee info
     const taskQuery = `
-      SELECT t.id, t.title, t.assigned_to, e.id as employee_id, e.first_name, e.last_name
+      SELECT t.task_id, t.task_name, t.assigned_to, u.user_id as employee_id, u.first_name, u.last_name
       FROM tasks t
-      JOIN employees e ON t.assigned_to = e.id
-      WHERE t.id = $1
+      LEFT JOIN users u ON t.assigned_to = u.user_id
+      WHERE t.task_id = $1
     `;
     const taskResult = await pool.query(taskQuery, [taskId]);
     
@@ -74,7 +74,7 @@ router.post('/upload', upload.array('files', 10), async (req, res) => {
 
     // Create attachment record
     const uploadQuery = `
-      INSERT INTO attachments (task_id, employee_id, description, status)
+      INSERT INTO project_attachments (task_id, employee_id, description, status)
       VALUES ($1, $2, $3, 'pending')
       RETURNING id, uploaded_at
     `;
@@ -154,12 +154,12 @@ router.get('/task/:taskId', async (req, res) => {
         a.description,
         a.status,
         a.uploaded_at,
-        COALESCE(e.first_name, '') as first_name,
-        COALESCE(e.last_name, '') as last_name,
-        COALESCE(t.title, '') as task_title
-      FROM attachments a
-      LEFT JOIN employees e ON a.employee_id = e.id
-      LEFT JOIN tasks t ON a.task_id = t.id
+        COALESCE(u.first_name, '') as first_name,
+        COALESCE(u.last_name, '') as last_name,
+        COALESCE(t.task_name, '') as task_title
+      FROM project_attachments a
+      LEFT JOIN users u ON a.employee_id = u.user_id
+      LEFT JOIN tasks t ON a.task_id = t.task_id
       WHERE a.task_id = $1
       ORDER BY a.uploaded_at DESC
     `;
@@ -226,11 +226,11 @@ router.get('/employee/:employeeId', async (req, res) => {
         a.description,
         a.status,
         a.uploaded_at,
-        t.title as task_title,
-        p.name as project_name
-      FROM attachments a
-      JOIN tasks t ON a.task_id = t.id
-      JOIN projects p ON t.project_id = p.id
+        t.task_name as task_title,
+        p.project_name as project_name
+      FROM project_attachments a
+      JOIN tasks t ON a.task_id = t.task_id
+      JOIN projects p ON t.project_id = p.project_id
       WHERE a.employee_id = $1
       ORDER BY a.uploaded_at DESC
       LIMIT $2 OFFSET $3
@@ -238,7 +238,7 @@ router.get('/employee/:employeeId', async (req, res) => {
 
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM attachments
+      FROM project_attachments
       WHERE employee_id = $1
     `;
 
@@ -271,7 +271,7 @@ router.put('/:uploadId/review', async (req, res) => {
     }
 
     const query = `
-      UPDATE attachments 
+      UPDATE project_attachments 
       SET status = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2
       RETURNING id, status, uploaded_at

@@ -12,13 +12,13 @@ async function listProjectsAndTasks() {
   try {
     const result = await pool.query(`
       SELECT 
-        p.name AS project_name, 
-        t.id AS task_id, 
-        t.title AS task_title, 
+        p.project_name, 
+        t.task_id, 
+        t.task_name, 
         t.status 
       FROM projects p 
-      LEFT JOIN tasks t ON p.id = t.project_id 
-      ORDER BY p.name, t.title
+      LEFT JOIN tasks t ON p.project_id = t.project_id 
+      ORDER BY p.project_name, t.task_name
     `);
 
     console.log('='.repeat(60));
@@ -36,7 +36,7 @@ async function listProjectsAndTasks() {
       }
       if (row.task_id) {
         taskCount++;
-        console.log(`   [${row.status}] ${row.task_title}`);
+        console.log(`   [${row.status}] ${row.task_name}`);
       } else {
         console.log('   (No tasks)');
       }

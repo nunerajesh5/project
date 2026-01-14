@@ -1,16 +1,15 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { View, Text, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, RefreshControl, Alert, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 // DB-only: no selectors/mocks
 import { AuthContext } from '../../context/AuthContext';
 import { usePermissions } from '../../context/PermissionsContext';
 // Removed useRole import to avoid context errors
 import { api } from '../../api/client';
-import Card from '../../components/shared/Card';
 import ClientCard from '../../components/shared/ClientCard';
 import Button from '../../components/shared/Button';
-import AppHeader from '../../components/shared/AppHeader';
 
 export default function ClientsScreen() {
   const { t } = useTranslation();
@@ -20,10 +19,12 @@ export default function ClientsScreen() {
   // Show Add Client button only if permission is granted
   const canManageClients = has('clients.add');
   const [clients, setClients] = useState<any[]>([]);
+  const [filteredClients, setFilteredClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadClients = async (pageNum = 1) => {
     try {
@@ -47,11 +48,14 @@ export default function ClientsScreen() {
           id: c.id,
           name: c.name,
           clientCode: `CLT-${String(index + 1).padStart(3, '0')}`, // Generate user-friendly client code
+          client_type: c.client_type || 'Client',
+          location: c.location || '',
           email: c.email,
           phone: c.phone,
           address: c.address,
           contact_person: c.contact_person,
-          status: c.status || 'ACTIVE',
+          onboard_date: c.onboard_date || c.created_at,
+          project_count: c.project_count || 0,
           created_at: c.created_at,
           updated_at: c.updated_at,
         }));
@@ -68,6 +72,7 @@ export default function ClientsScreen() {
       const start = (pageNum - 1) * pageSize;
       const slice = all.slice(start, start + pageSize);
       setClients(pageNum === 1 ? slice : [...clients, ...slice]);
+      setFilteredClients(pageNum === 1 ? slice : [...clients, ...slice]);
       setHasNext(start + pageSize < all.length);
       setPage(pageNum);
       
@@ -77,6 +82,22 @@ export default function ClientsScreen() {
       Alert.alert('Error', 'Failed to load clients');
     }
   };
+
+  // Filter clients based on search query
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredClients(clients);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = clients.filter(client =>
+        client.name?.toLowerCase().includes(query) ||
+        client.client_type?.toLowerCase().includes(query) ||
+        client.location?.toLowerCase().includes(query) ||
+        client.email?.toLowerCase().includes(query)
+      );
+      setFilteredClients(filtered);
+    }
+  }, [searchQuery, clients]);
 
   useEffect(() => {
     // Only load clients if user is authenticated
@@ -245,22 +266,17 @@ export default function ClientsScreen() {
     }
   };
 
-  const formatCurrency = (amount: any) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return '#34C759';
-      case 'INACTIVE': return '#FF3B30';
-      case 'PENDING': return '#FF9500';
-      default: return '#666';
-    }
+  const handleEditClient = (client: any) => {
+    navigation.navigate('EditClient', { client });
   };
+
+  const formatCurrency = (amount: any) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 
 
   if (loading && clients.length === 0) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#6B5CE7" />
         <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
@@ -268,25 +284,41 @@ export default function ClientsScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader
-        rightAction={canManageClients ? {
-          title: `+ ${t('clients.add_client')}`,
-          onPress: () => navigation.navigate('AddClient')
-        } : undefined}
-      />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color="#1a1a1a" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{t('clients.clients')}</Text>
+        <View style={styles.headerRight} />
+      </View>
       
       <View style={styles.screenContent}>
-        <Text style={styles.title}>{t('clients.clients')}</Text>
-        
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search"
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            <Ionicons name="search" size={20} color="#999" />
+          </View>
+        </View>
+
         <FlatList
-        data={clients}
+        data={filteredClients}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <ClientCard 
             client={item} 
             onPress={() => handleClientPress(item)}
+            onEdit={() => handleEditClient(item)}
             onDelete={() => handleDeleteClient(item)}
             canDelete={canManageClients}
+            canEdit={canManageClients}
           />
         )}
         onEndReached={loadMore}
@@ -310,6 +342,16 @@ export default function ClientsScreen() {
         }
         contentContainerStyle={styles.listContent}
         />
+
+        {/* Floating Add Button */}
+        {canManageClients && (
+          <TouchableOpacity 
+            style={styles.fab}
+            onPress={() => navigation.navigate('AddClient')}
+          >
+            <Ionicons name="add" size={28} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -320,18 +362,50 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  screenContent: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e1e5e9',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  headerRight: {
+    width: 32,
+  },
+  screenContent: {
+    flex: 1,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1a1a1a',
+    padding: 0,
   },
   center: {
     flex: 1,
@@ -346,6 +420,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+    paddingBottom: 80,
   },
   emptyState: {
     alignItems: 'center',
@@ -365,5 +440,21 @@ const styles = StyleSheet.create({
   },
   emptyButton: {
     paddingHorizontal: 24,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B5CE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 });

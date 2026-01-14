@@ -51,7 +51,6 @@ export default function ClientsScreen() {
           phone: c.phone,
           address: c.address,
           contact_person: c.contact_person,
-          status: c.status || 'ACTIVE',
           created_at: c.created_at,
           updated_at: c.updated_at,
         }));
@@ -246,15 +245,6 @@ export default function ClientsScreen() {
   };
 
   const formatCurrency = (amount: any) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return '#34C759';
-      case 'INACTIVE': return '#FF3B30';
-      case 'PENDING': return '#FF9500';
-      default: return '#666';
-    }
-  };
 
 
   if (loading && clients.length === 0) {

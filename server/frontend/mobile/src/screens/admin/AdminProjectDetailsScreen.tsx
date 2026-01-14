@@ -89,8 +89,13 @@ export default function AdminProjectDetailsScreen() {
         const teamData = teamResponse?.teamMembers || [];
         
         // Get stats for each team member to include hours logged
-        const stats = await dashboardApi.getProjectStats(id as string);
-        const employeeBreakdown = stats?.employeeBreakdown || [];
+        let employeeBreakdown: any[] = [];
+        try {
+          const stats = await dashboardApi.getProjectStats(id as string);
+          employeeBreakdown = stats?.employeeBreakdown || [];
+        } catch (statsError) {
+          console.warn('Error loading project stats (non-critical):', statsError);
+        }
         
         // Map team members with their hours logged
         const teamMembersData = teamData.map((member: any) => {
@@ -108,7 +113,8 @@ export default function AdminProjectDetailsScreen() {
         });
         
         setTeamMembers(teamMembersData);
-      } catch (e) {
+      } catch (e: any) {
+        console.error('Error loading team members:', e?.message || e);
         setTeamMembers([]);
       }
 
@@ -200,14 +206,15 @@ export default function AdminProjectDetailsScreen() {
     if (!selectedEmployee || !id) return;
     
     try {
+      console.log('Adding team member:', selectedEmployee, 'to project:', id);
       await addProjectTeamMember(id as string, selectedEmployee, 'member');
       Alert.alert('Success', 'Team member added successfully');
       setShowAddMemberModal(false);
       setSelectedEmployee(null);
       await loadData();
     } catch (error: any) {
-      console.error('Error adding team member:', error);
-      Alert.alert('Error', error.response?.data?.error || 'Failed to add team member');
+      console.error('Error adding team member:', error?.response?.data || error?.message || error);
+      Alert.alert('Error', error.response?.data?.error || error?.message || 'Failed to add team member');
     }
   };
 

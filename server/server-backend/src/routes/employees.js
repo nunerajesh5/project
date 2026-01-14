@@ -44,12 +44,12 @@ router.post('/:id/photo', photoUpload.single('photo'), async (req, res) => {
     }
     const file = req.file;
 
-    // Ensure employee exists
-    const exists = await pool.query('SELECT id FROM employees WHERE id = $1', [id]);
+    // Ensure user exists
+    const exists = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [id]);
     if (exists.rows.length === 0) {
-      // cleanup file if employee not found
+      // cleanup file if user not found
       try { fs.unlinkSync(file.path); } catch {}
-      return res.status(404).json({ error: 'Employee not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
     // Store file metadata in employee_documents
@@ -60,10 +60,54 @@ router.post('/:id/photo', photoUpload.single('photo'), async (req, res) => {
       [id, file.originalname, file.filename, file.path, file.size, file.mimetype, path.extname(file.originalname).toLowerCase()]
     );
 
+    // Also update the photograph column in users table with the file path
+    await pool.query(
+      `UPDATE users SET photograph = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+      [file.path, id]
+    );
+
     res.json({ success: true, documentId: insert.rows[0].id, fileName: file.filename });
   } catch (error) {
     console.error('Error uploading employee photo:', error);
     res.status(500).json({ error: 'Failed to upload photo' });
+  }
+});
+
+// POST /api/employees/:id/aadhaar - Upload employee aadhaar image
+router.post('/:id/aadhaar', photoUpload.single('aadhaar'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aadhaar image file is required' });
+    }
+    const file = req.file;
+
+    // Ensure user exists
+    const exists = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [id]);
+    if (exists.rows.length === 0) {
+      // cleanup file if user not found
+      try { fs.unlinkSync(file.path); } catch {}
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Store file metadata in employee_documents
+    const insert = await pool.query(
+      `INSERT INTO employee_documents (employee_id, document_type, original_name, file_name, file_path, file_size, mime_type, file_extension, is_image)
+       VALUES ($1, 'aadhaar', $2, $3, $4, $5, $6, $7, true)
+       RETURNING id`,
+      [id, file.originalname, file.filename, file.path, file.size, file.mimetype, path.extname(file.originalname).toLowerCase()]
+    );
+
+    // Also update the aadhaar_image column in users table with the file path
+    await pool.query(
+      `UPDATE users SET aadhaar_image = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2`,
+      [file.path, id]
+    );
+
+    res.json({ success: true, documentId: insert.rows[0].id, fileName: file.filename });
+  } catch (error) {
+    console.error('Error uploading aadhaar image:', error);
+    res.status(500).json({ error: 'Failed to upload aadhaar image' });
   }
 });
 
@@ -82,72 +126,48 @@ router.get('/', async (req, res) => {
       return res.json({
         employees: [],
         total: 0,
-        page: Number(page),
-        limit: Number(limit)
+        page: 1,
+        limit: 50
       });
     }
-    
+
+    // Demo users see users table data
     const offset = (page - 1) * limit;
     let where = 'WHERE 1=1';
     const params = [];
     
-    if (active === 'true') {
-      where += ' AND e.is_active = true';
-    } else if (active === 'false') {
-      where += ' AND e.is_active = false';
-    }
-    
     if (search) {
       params.push(`%${search.toLowerCase()}%`);
-      where += ` AND (LOWER(e.first_name) LIKE $${params.length} OR LOWER(e.last_name) LIKE $${params.length} OR LOWER(e.employee_id) LIKE $${params.length})`;
+      where += ` AND (LOWER(first_name || ' ' || last_name) LIKE $${params.length} OR LOWER(email_id) LIKE $${params.length})`;
     }
     
-    if (department) {
-      params.push(department);
-      where += ` AND e.department = $${params.length}`;
+    if (active === 'true') {
+      where += ' AND is_active = true';
+    } else if (active === 'false') {
+      where += ' AND is_active = false';
     }
-    
-    // Determine if user can see salary information (only admin)
-    const canViewSalary = req.user && req.user.role === 'admin';
-    console.log('User role:', req.user?.role, 'Can view salary:', canViewSalary);
-    
-    // If user is a manager (NOT admin), exclude other managers from the results
-    if (req.user && req.user.role === 'manager') {
-      where += ` AND e.department != 'Management'`;
-      console.log('Manager role: filtering out Management department');
-    } else if (req.user && req.user.role === 'admin') {
-      console.log('Admin role: showing ALL employees including Management');
-    }
-    
-    const salaryFields = canViewSalary 
-      ? ', e.salary_type, e.salary_amount, e.hourly_rate'
-      : '';
     
     const list = await pool.query(
-      `SELECT e.id, e.employee_id, e.first_name, e.last_name, e.email, e.phone, e.department, 
-              e.salutation, e.date_of_birth, e.joining_date, e.employment_type, e.aadhaar_number,
-              e.salary_type, e.salary_amount, e.hourly_rate, e.is_active, e.created_at, e.updated_at
-       FROM employees e
+      `SELECT user_id as id, user_id as employee_id, first_name, last_name, email_id as email, phone_number as phone,
+              NULL as department, NULL as salary_type, NULL as salary_amount, NULL as hourly_rate,
+              is_active, created_at, updated_at, role
+       FROM users
        ${where}
-       ORDER BY e.created_at DESC
+       ORDER BY created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
       params
     );
-    const count = await pool.query(`SELECT COUNT(*) as count FROM employees e ${where}`, params);
     
-    console.log('📊 Query Results:');
-    console.log('   Total employees found:', list.rows.length);
-    console.log('   Departments:', [...new Set(list.rows.map(e => e.department))]);
-    console.log('   Management employees:', list.rows.filter(e => e.department === 'Management').map(e => `${e.first_name} ${e.last_name}`));
+    const count = await pool.query(`SELECT COUNT(*) as count FROM users ${where}`, params);
     
-    res.json({ 
-      employees: list.rows, 
-      total: parseInt(count.rows[0].count), 
-      page: Number(page), 
-      limit: Number(limit) 
+    res.json({
+      employees: list.rows,
+      total: parseInt(count.rows[0].count),
+      page: Number(page),
+      limit: Number(limit)
     });
   } catch (err) {
-    console.error('GET /api/employees failed:', err);
+    console.error('Employees GET error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -161,9 +181,9 @@ router.get('/:id', async (req, res) => {
     const canViewSalary = req.user && req.user.role === 'admin';
     
     // If user is a manager, check if the employee is not a manager
-    let whereClause = 'WHERE id = $1';
+    let whereClause = 'WHERE user_id = $1';
     if (req.user && req.user.role === 'manager') {
-      whereClause += ` AND department != 'Management'`;
+      whereClause += ` AND department_id != 'Management'`;
     }
     
     const salaryFields = canViewSalary 
@@ -171,11 +191,13 @@ router.get('/:id', async (req, res) => {
       : '';
     
     const result = await pool.query(
-      `SELECT id, employee_id, first_name, last_name, email, phone, department${salaryFields}, is_active, created_at, updated_at FROM employees ${whereClause}`,
+      `SELECT user_id as id, user_id as employee_id, first_name, last_name, email_id as email, phone_number as phone, 
+              department_id as department${salaryFields}, is_active, created_at, updated_at 
+       FROM users ${whereClause}`,
       [id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
     res.json({ employee: result.rows[0] });
   } catch (err) {
@@ -194,31 +216,101 @@ router.post('/', [
   body('salutation').optional().isString(),
   body('dateOfBirth').optional().isISO8601().withMessage('Valid date of birth required'),
   body('joiningDate').optional().isISO8601().withMessage('Valid joining date required'),
-  body('employmentType').optional().isIn(['Permanent', 'Temp.', 'Contract']),
+  body('employmentType').optional().isIn(['Full Time', 'Temporary', 'Contract']),
   body('aadhaarNumber').optional().isString(),
+  body('address').optional().isString(),
+  body('countryId').optional().isUUID().withMessage('Valid country ID required'),
+  body('stateId').optional().isUUID().withMessage('Valid state ID required'),
+  body('designationId').optional().isUUID().withMessage('Valid designation ID required'),
   body('salaryType').isIn(['hourly', 'daily', 'monthly']).withMessage('Valid salary type required'),
   body('salaryAmount').isNumeric().withMessage('Salary amount must be a number'),
   body('hourlyRate').optional().isNumeric().withMessage('Hourly rate must be a number'),
+  body('overtimeRate').optional().isNumeric().withMessage('Overtime rate must be a number'),
 ], handleValidation, async (req, res) => {
   try {
-    const { employeeId, firstName, lastName, email, phone, department, salutation, dateOfBirth, joiningDate, employmentType, aadhaarNumber, salaryType, salaryAmount, hourlyRate } = req.body;
+    const { 
+      employeeId, firstName, lastName, email, phone, department, 
+      salutation, dateOfBirth, joiningDate, employmentType, aadhaarNumber, 
+      address, countryId, stateId, designationId,
+      salaryType, salaryAmount, hourlyRate, overtimeRate 
+    } = req.body;
     
-    // Check if employee ID already exists
-    const existing = await pool.query('SELECT id FROM employees WHERE employee_id = $1', [employeeId]);
+    // Check if user with this email already exists
+    const existing = await pool.query('SELECT user_id FROM users WHERE email_id = $1', [email]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Employee ID already exists' });
+      return res.status(409).json({ error: 'User with this email already exists' });
     }
 
+    // Get IT Department ID (default department)
+    let departmentId = null;
+    if (department) {
+      // Check if it's already a UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(department)) {
+        departmentId = department;
+      } else {
+        // Look up department by name
+        const deptResult = await pool.query('SELECT department_id FROM departments WHERE name = $1', [department]);
+        if (deptResult.rows.length > 0) {
+          departmentId = deptResult.rows[0].department_id;
+        }
+      }
+    }
+    
+    // If no department found, use IT Department as default
+    if (!departmentId) {
+      const itDept = await pool.query("SELECT department_id FROM departments WHERE name = 'IT Department'");
+      if (itDept.rows.length > 0) {
+        departmentId = itDept.rows[0].department_id;
+      }
+    }
+
+    // Determine role based on designation
+    let userRole = 'employee';
+    if (designationId) {
+      const designationResult = await pool.query(
+        'SELECT name FROM designations WHERE designation_id = $1',
+        [designationId]
+      );
+      if (designationResult.rows.length > 0) {
+        const designationName = designationResult.rows[0].name;
+        // If designation is Manager, set role as manager
+        if (designationName.toLowerCase() === 'manager') {
+          userRole = 'manager';
+        }
+      }
+    }
+
+    // Generate a random password for new user (they can reset it later)
+    const bcrypt = require('bcryptjs');
+    const tempPassword = Math.random().toString(36).slice(-8);
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+
     const result = await pool.query(
-      `INSERT INTO employees (employee_id, first_name, last_name, email, phone, department, salutation, date_of_birth, joining_date, employment_type, aadhaar_number, salary_type, salary_amount, hourly_rate) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-      [employeeId, firstName, lastName, email, phone, department, salutation || null, dateOfBirth || null, joiningDate || null, employmentType || null, aadhaarNumber || null, salaryType, salaryAmount, hourlyRate]
+      `INSERT INTO users (
+        first_name, last_name, email_id, phone_number, department_id, password_hash, role,
+        salutation, date_of_birth, joining_date, employee_type, aadhaar_number,
+        address, country_id, state_id, designation_id,
+        pay_calculation, amount, overtime_rate, is_active
+      ) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, true) 
+       RETURNING user_id as id, user_id as employee_id, first_name, last_name, email_id as email, 
+                 phone_number as phone, department_id as department, salutation, date_of_birth, 
+                 joining_date, employee_type, aadhaar_number, address, country_id, state_id, designation_id,
+                 role, is_active, created_at, updated_at`,
+      [
+        firstName, lastName, email, phone, departmentId, passwordHash, userRole,
+        salutation || null, dateOfBirth || null, joiningDate || null, employmentType || null, aadhaarNumber || null,
+        address || null, countryId || null, stateId || null, designationId || null,
+        salaryType, salaryAmount, overtimeRate || null
+      ]
     );
-    res.status(201).json({ employee: result.rows[0] });
+    res.status(201).json({ employee: result.rows[0], tempPassword });
   } catch (err) {
     if (String(err.message || '').includes('duplicate')) {
-      return res.status(409).json({ error: 'Employee with this ID already exists' });
+      return res.status(409).json({ error: 'User with this email already exists' });
     }
+    console.error('Error creating employee:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -240,26 +332,33 @@ router.put('/:id', [
     const { id } = req.params;
     const { employeeId, firstName, lastName, email, phone, department, salaryType, salaryAmount, hourlyRate, isActive } = req.body;
     
-    // Check if employee exists
-    const exists = await pool.query('SELECT id FROM employees WHERE id = $1', [id]);
+    // Check if user exists
+    const exists = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [id]);
     if (exists.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check if employee ID is being changed and if it already exists
-    if (employeeId) {
-      const existing = await pool.query('SELECT id FROM employees WHERE employee_id = $1 AND id != $2', [employeeId, id]);
+    // Check if email is being changed and if it already exists
+    if (email) {
+      const existing = await pool.query('SELECT user_id FROM users WHERE email_id = $1 AND user_id != $2', [email, id]);
       if (existing.rows.length > 0) {
-        return res.status(409).json({ error: 'Employee ID already exists' });
+        return res.status(409).json({ error: 'Email already exists' });
       }
     }
 
     const result = await pool.query(
-      'UPDATE employees SET employee_id = COALESCE($1, employee_id), first_name = COALESCE($2, first_name), last_name = COALESCE($3, last_name), email = COALESCE($4, email), phone = COALESCE($5, phone), department = COALESCE($6, department), salary_type = COALESCE($7, salary_type), salary_amount = COALESCE($8, salary_amount), hourly_rate = COALESCE($9, hourly_rate), is_active = COALESCE($10, is_active), updated_at = CURRENT_TIMESTAMP WHERE id = $11 RETURNING *',
-      [employeeId, firstName, lastName, email, phone, department, salaryType, salaryAmount, hourlyRate, isActive, id]
+      `UPDATE users SET first_name = COALESCE($1, first_name), last_name = COALESCE($2, last_name), 
+       email_id = COALESCE($3, email_id), phone_number = COALESCE($4, phone_number), 
+       department_id = COALESCE($5, department_id), salary_type = COALESCE($6, salary_type), 
+       salary_amount = COALESCE($7, salary_amount), hourly_rate = COALESCE($8, hourly_rate), 
+       is_active = COALESCE($9, is_active), updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $10 
+       RETURNING user_id as id, user_id as employee_id, first_name, last_name, email_id as email, phone_number as phone, department_id as department, is_active, created_at, updated_at`,
+      [firstName, lastName, email, phone, department, salaryType, salaryAmount, hourlyRate, isActive, id]
     );
     res.json({ employee: result.rows[0] });
   } catch (err) {
+    console.error('Error updating employee:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -269,17 +368,17 @@ router.delete('/:id', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if employee has active time entries
-    const timeEntries = await pool.query('SELECT COUNT(*) as count FROM time_entries WHERE employee_id = $1 AND is_active = true', [id]);
+    // Check if user has time entries
+    const timeEntries = await pool.query('SELECT COUNT(*) as count FROM time_entries WHERE employee_id = $1', [id]);
     if (parseInt(timeEntries.rows[0].count) > 0) {
-      return res.status(400).json({ error: 'Cannot delete employee with active time entries' });
+      return res.status(400).json({ error: 'Cannot delete user with time entries' });
     }
 
-    const result = await pool.query('UPDATE employees SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *', [id]);
+    const result = await pool.query('UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE user_id = $1 RETURNING user_id', [id]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
-    res.json({ message: 'Employee deactivated successfully' });
+    res.json({ message: 'User deactivated successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -292,40 +391,40 @@ router.get('/:id/time-entries', async (req, res) => {
     const { page = 1, limit = 100, projectId = '' } = req.query;
     const offset = (page - 1) * limit;
     
-    // Find employee by ID or by email (for users table compatibility)
+    // Find user by ID or by email
     let employeeId = id;
-    const employeeCheck = await pool.query('SELECT id, email FROM employees WHERE id = $1', [id]);
+    const userCheck = await pool.query('SELECT user_id, email_id FROM users WHERE user_id = $1', [id]);
     
-    if (employeeCheck.rows.length === 0) {
+    if (userCheck.rows.length === 0) {
       // If not found by ID, try to find by email using the logged-in user's email
       if (req.user && req.user.email) {
-        const empByEmail = await pool.query('SELECT id FROM employees WHERE email = $1', [req.user.email]);
-        if (empByEmail.rows.length > 0) {
-          employeeId = empByEmail.rows[0].id;
-          console.log(`✅ Found employee by email: ${req.user.email} -> ${employeeId}`);
+        const userByEmail = await pool.query('SELECT user_id FROM users WHERE email_id = $1', [req.user.email]);
+        if (userByEmail.rows.length > 0) {
+          employeeId = userByEmail.rows[0].user_id;
+          console.log(`✅ Found user by email: ${req.user.email} -> ${employeeId}`);
         } else {
-          return res.status(404).json({ error: 'Employee not found' });
+          return res.status(404).json({ error: 'User not found' });
         }
       } else {
-        return res.status(404).json({ error: 'Employee not found' });
+        return res.status(404).json({ error: 'User not found' });
       }
     }
 
-    let where = 'WHERE te.employee_id = $1 AND te.is_active = true';
+    let where = 'WHERE te.employee_id = $1';
     const params = [employeeId];
     
     if (projectId) {
       params.push(projectId);
-      where += ` AND p.id = $${params.length}`;
+      where += ` AND p.project_id = $${params.length}`;
     }
 
     const result = await pool.query(
-      `SELECT te.id, te.task_id, te.work_date, te.start_time, te.end_time, te.duration_minutes, te.description, te.created_at,
-              t.title as task_title, t.status as task_status,
-              p.name as project_name, p.status as project_status, p.id as project_id
+      `SELECT te.id, te.task_id, te.work_date, te.start_time, te.end_time, te.duration_minutes, te.created_at,
+              t.task_name as task_title, t.status as task_status,
+              p.project_name as project_name, p.status as project_status, p.project_id as project_id
        FROM time_entries te
-       JOIN tasks t ON te.task_id = t.id
-       JOIN projects p ON t.project_id = p.id
+       JOIN tasks t ON te.task_id = t.task_id
+       JOIN projects p ON t.project_id = p.project_id
        ${where}
        ORDER BY te.start_time DESC
        LIMIT ${limit} OFFSET ${offset}`,
@@ -335,8 +434,8 @@ router.get('/:id/time-entries', async (req, res) => {
     const count = await pool.query(
       `SELECT COUNT(*) as count 
        FROM time_entries te
-       JOIN tasks t ON te.task_id = t.id
-       JOIN projects p ON t.project_id = p.id
+       JOIN tasks t ON te.task_id = t.task_id
+       JOIN projects p ON t.project_id = p.project_id
        ${where}`, 
       params
     );
@@ -361,19 +460,19 @@ router.get('/:id/summary', async (req, res) => {
     const canViewSalary = req.user && req.user.role === 'admin';
     
     // If user is a manager, check if the employee is not a manager
-    let whereClause = 'WHERE id = $1';
+    let whereClause = 'WHERE user_id = $1';
     if (req.user && req.user.role === 'manager') {
-      whereClause += ` AND department != 'Management'`;
+      whereClause += ` AND department_id != 'Management'`;
     }
     
     const salaryFields = canViewSalary 
       ? ', salary_type, salary_amount, hourly_rate'
       : '';
     
-    // Verify employee exists
-    const employee = await pool.query(`SELECT id, first_name, last_name, employee_id${salaryFields} FROM employees ${whereClause}`, [id]);
+    // Verify user exists
+    const employee = await pool.query(`SELECT user_id as id, first_name, last_name, user_id as employee_id${salaryFields} FROM users ${whereClause}`, [id]);
     if (employee.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
     let dateFilter = '';
@@ -384,18 +483,16 @@ router.get('/:id/summary', async (req, res) => {
       dateFilter = `AND te.start_time >= $${params.length - 1} AND te.start_time <= $${params.length}`;
     }
 
-    const [totalHours, totalCost, projectCount, recentEntries] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(duration_minutes), 0) as total_minutes FROM time_entries te WHERE te.employee_id = $1 AND te.is_active = true ${dateFilter}`, params),
-      pool.query(`SELECT COALESCE(SUM(cost), 0) as total_cost FROM time_entries te WHERE te.employee_id = $1 AND te.is_active = true ${dateFilter}`, params),
-      pool.query(`SELECT COUNT(DISTINCT project_id) as project_count FROM time_entries te WHERE te.employee_id = $1 AND te.is_active = true ${dateFilter}`, params),
-      pool.query(`SELECT te.id, te.start_time, te.duration_minutes, te.cost, p.name as project_name FROM time_entries te JOIN projects p ON te.project_id = p.id WHERE te.employee_id = $1 AND te.is_active = true ${dateFilter} ORDER BY te.start_time DESC LIMIT 5`, params)
+    const [totalHours, projectCount, recentEntries] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(duration_minutes), 0) as total_minutes FROM time_entries te WHERE te.employee_id = $1 ${dateFilter}`, params),
+      pool.query(`SELECT COUNT(DISTINCT t.project_id) as project_count FROM time_entries te JOIN tasks t ON te.task_id = t.task_id WHERE te.employee_id = $1 ${dateFilter}`, params),
+      pool.query(`SELECT te.id, te.start_time, te.duration_minutes, p.project_name as project_name FROM time_entries te JOIN tasks t ON te.task_id = t.task_id JOIN projects p ON t.project_id = p.project_id WHERE te.employee_id = $1 ${dateFilter} ORDER BY te.start_time DESC LIMIT 5`, params)
     ]);
 
     res.json({
       employee: employee.rows[0],
       summary: {
         totalHours: Math.round(parseInt(totalHours.rows[0].total_minutes) / 60 * 100) / 100,
-        totalCost: parseFloat(totalCost.rows[0].total_cost),
         projectCount: parseInt(projectCount.rows[0].project_count),
         recentEntries: recentEntries.rows
       }
@@ -412,10 +509,10 @@ router.get('/:id/projects', async (req, res) => {
     const { page = 1, limit = 100, status = '' } = req.query;
     const offset = (page - 1) * limit;
 
-    // Check if employee exists
-    const employeeExists = await pool.query('SELECT id FROM employees WHERE id = $1', [id]);
-    if (employeeExists.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
+    // Check if user exists
+    const userExists = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [id]);
+    if (userExists.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
     let where = 'WHERE t.assigned_to = $1';
@@ -427,26 +524,26 @@ router.get('/:id/projects', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT DISTINCT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
+      `SELECT DISTINCT p.project_id, p.project_name, p.description, p.status, p.start_date, p.end_date, p.estimated_value, 
               p.priority, p.team_size, p.progress, p.estimated_hours,
-              p.created_at, p.updated_at, c.name as client_name, c.id as client_id,
-              COUNT(t.id) as task_count
+              p.created_at, p.updated_at, COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') as client_name, c.client_id as client_id,
+              COUNT(t.task_id) as task_count
        FROM projects p
-       JOIN clients c ON p.client_id = c.id
-       JOIN tasks t ON p.id = t.project_id
+       JOIN clients c ON p.client_id = c.client_id
+       JOIN tasks t ON p.project_id = t.project_id
        ${where}
-       GROUP BY p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.budget, 
+       GROUP BY p.project_id, p.project_name, p.description, p.status, p.start_date, p.end_date, p.estimated_value, 
                 p.priority, p.team_size, p.progress, p.estimated_hours,
-                p.created_at, p.updated_at, c.name, c.id
+                p.created_at, p.updated_at, c.first_name, c.last_name, c.client_id
        ORDER BY p.created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
       params
     );
 
     const count = await pool.query(
-      `SELECT COUNT(DISTINCT p.id) as count 
+      `SELECT COUNT(DISTINCT p.project_id) as count 
        FROM projects p
-       JOIN tasks t ON p.id = t.project_id
+       JOIN tasks t ON p.project_id = t.project_id
        ${where}`,
       params
     );

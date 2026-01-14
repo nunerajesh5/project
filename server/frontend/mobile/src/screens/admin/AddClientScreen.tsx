@@ -111,6 +111,21 @@ export default function AddClientScreen() {
       return false;
     }
     
+    // GST Number - Optional but validate format if provided
+    if (formData.gst.trim()) {
+      const gst = formData.gst.trim();
+      if (gst.length !== 15) {
+        Alert.alert('Validation Error', 'GST number must be exactly 15 characters');
+        return false;
+      }
+      // Validate GSTIN format: 2 digit state code + 10 char PAN + 1 entity code + Z + 1 checksum
+      const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+      if (!gstRegex.test(gst)) {
+        Alert.alert('Validation Error', 'Invalid GST number format.\n\nFormat: State Code(2) + PAN(10) + Entity(1) + Z + Checksum(1)\n\nExample: 27ABCDE1234F1Z5');
+        return false;
+      }
+    }
+    
     return true;
   };
 
@@ -124,7 +139,7 @@ export default function AddClientScreen() {
         salutation: formData.salutation.trim() || null,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
-        gst: formData.gst.trim() || null,
+        gstNumber: formData.gst.trim() || null,
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         address: formData.address.trim(),
@@ -252,14 +267,16 @@ export default function AddClientScreen() {
             {/* GST */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>GST Number</Text>
+              <Text style={styles.sampleText}>Format: 27ABCDE1234F1Z5 (15 characters)</Text>
               <TextInput
                 style={styles.input}
                 value={formData.gst}
-                onChangeText={(value) => handleInputChange('gst', value)}
-                placeholder="Enter GST number (optional)"
+                onChangeText={(value) => handleInputChange('gst', value.toUpperCase())}
+                placeholder="e.g. 27ABCDE1234F1Z5"
                 placeholderTextColor="#999"
                 autoCapitalize="characters"
                 autoCorrect={false}
+                maxLength={15}
               />
             </View>
 
@@ -381,7 +398,7 @@ export default function AddClientScreen() {
                       salutation: formData.salutation.trim() || null,
                       firstName: formData.firstName.trim(),
                       lastName: formData.lastName.trim(),
-                      gst: formData.gst.trim() || null,
+                      gstNumber: formData.gst.trim() || null,
                       email: formData.email.trim(),
                       phone: formData.phone.trim(),
                       address: formData.address.trim(),
@@ -509,6 +526,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1a1a1a',
     flex: 1,
+  },
+  sampleText: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginBottom: 4,
+    fontStyle: 'italic',
   },
   input: {
     borderWidth: 1,

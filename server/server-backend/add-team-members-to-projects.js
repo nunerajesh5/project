@@ -32,14 +32,14 @@ async function addTeamMembersToProjects() {
       console.log('✅ Added team_members column to projects table.');
     }
 
-    // Step 3: Update existing projects with their team member names
+    // Step 3: Update existing projects with their team member UUIDs as JSON array
     const updateResult = await client.query(`
       UPDATE projects p
       SET team_members = subquery.members
       FROM (
         SELECT 
           p2.id as project_id,
-          STRING_AGG(CONCAT(e.first_name, ' ', e.last_name), ', ' ORDER BY e.first_name) as members
+          COALESCE(json_agg(e.id ORDER BY e.first_name)::text, '[]') as members
         FROM projects p2
         LEFT JOIN project_team_memberships ptm ON p2.id = ptm.project_id
         LEFT JOIN employees e ON ptm.employee_id = e.id
@@ -49,17 +49,17 @@ async function addTeamMembersToProjects() {
       WHERE p.id = subquery.project_id
       AND (p.team_members IS NULL OR p.team_members != subquery.members)
     `);
-    console.log(`✅ Updated ${updateResult.rowCount} projects with their team member names.`);
+    console.log(`✅ Updated ${updateResult.rowCount} projects with team member UUIDs (JSON array format).`);
 
-    // Step 4: Create or replace trigger function to auto-populate team_members
+    // Step 4: Create or replace trigger function to auto-populate team_members with UUIDs as JSON array
     await client.query(`
       CREATE OR REPLACE FUNCTION update_project_team_members()
       RETURNS TRIGGER AS $$
       BEGIN
-        -- Update the team_members field in projects table
+        -- Update the team_members field in projects table with employee UUIDs as JSON array
         UPDATE projects p
         SET team_members = (
-          SELECT STRING_AGG(CONCAT(e.first_name, ' ', e.last_name), ', ' ORDER BY e.first_name)
+          SELECT COALESCE(json_agg(e.id ORDER BY e.first_name)::text, '[]')
           FROM project_team_memberships ptm
           JOIN employees e ON ptm.employee_id = e.id
           WHERE ptm.project_id = COALESCE(NEW.project_id, OLD.project_id)
@@ -70,7 +70,7 @@ async function addTeamMembersToProjects() {
       END;
       $$ LANGUAGE plpgsql;
     `);
-    console.log('✅ Created trigger function update_project_team_members().');
+    console.log('✅ Created trigger function update_project_team_members() with JSON array format.');
 
     // Step 5: Drop existing trigger if exists and create new one
     await client.query(`

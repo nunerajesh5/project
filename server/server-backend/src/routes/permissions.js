@@ -123,7 +123,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const accessByPerm = new Map();
     for (const p of permissions) {
-      accessByPerm.set(p.id, { admin: false, manager: false, employee: false });
+      accessByPerm.set(p.project_id, { admin: false, manager: false, employee: false });
     }
     for (const m of mappings) {
       if (accessByPerm.has(m.permission_id)) {
@@ -132,10 +132,10 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     const result = permissions.map(p => ({
-      id: p.id,
-      name: p.name,
+      id: p.project_id,
+      name: p.project_name,
       description: p.description,
-      access: accessByPerm.get(p.id)
+      access: accessByPerm.get(p.project_id)
     }));
 
     res.json({ roles, permissions: result });

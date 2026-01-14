@@ -91,7 +91,8 @@ router.post('/login', [
     
     // Demo accounts (for development) - these are in users table
     // Check users table FIRST for demo accounts (admin@company.com, rajesh@company.com, etc.)
-    const demoResult = await pool.query('SELECT id, email, password_hash, first_name, last_name, role FROM users WHERE email = $1', [email]);
+    // Note: Using email_id and user_id column names to match actual database schema
+    const demoResult = await pool.query('SELECT user_id as id, email_id as email, password_hash, first_name, last_name, role FROM users WHERE email_id = $1', [email]);
     
     if (demoResult.rows.length > 0) {
       const row = demoResult.rows[0];
@@ -203,8 +204,8 @@ router.get('/profile', async (req, res) => {
       }
     }
     
-    // Fallback: check users table
-    const result = await pool.query('SELECT id, email, first_name, last_name, role FROM users WHERE id = $1', [decoded.userId]);
+    // Fallback: check users table (using email_id and user_id column names)
+    const result = await pool.query('SELECT user_id as id, email_id as email, first_name, last_name, role FROM users WHERE user_id = $1', [decoded.userId]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ user: result.rows[0] });
   } catch (err) {

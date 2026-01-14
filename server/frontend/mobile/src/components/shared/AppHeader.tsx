@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   rightActionText: {
-    color: '#fff',
+    color: '#007AFF',
     fontSize: 14,
     fontWeight: '600',
   },

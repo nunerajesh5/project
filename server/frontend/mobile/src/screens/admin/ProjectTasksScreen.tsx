@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity, Alert, Modal, TextInput, Image } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { translateStatus, translatePriority } from '../../utils/translations';
@@ -10,6 +10,8 @@ import Card from '../../components/shared/Card';
 import SafeAreaWrapper from '../../components/shared/SafeAreaWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import VoiceToTextButton from '../../components/shared/VoiceToTextButton';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 
 // Admin Project Tasks Screen - Updated
 
@@ -77,7 +79,7 @@ export default function ProjectTasksScreen() {
   
   // Form state
   const [taskName, setTaskName] = useState('');
-  const [location, setLocation] = useState('at_site');
+  const [location, setLocation] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
@@ -85,6 +87,90 @@ export default function ProjectTasksScreen() {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isHighPriority, setIsHighPriority] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [attachments, setAttachments] = useState<{uri: string, name: string, type: string}[]>([]);
+
+  // Handle attachment picker
+  const handlePickAttachment = async () => {
+    Alert.alert(
+      'Add Attachment',
+      'Choose attachment type',
+      [
+        {
+          text: 'Photo Library',
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: true,
+                quality: 0.8,
+              });
+              if (!result.canceled && result.assets) {
+                const newAttachments = result.assets.map(asset => ({
+                  uri: asset.uri,
+                  name: asset.fileName || `image_${Date.now()}.jpg`,
+                  type: 'image'
+                }));
+                setAttachments(prev => [...prev, ...newAttachments]);
+              }
+            } catch (error) {
+              console.error('Image picker error:', error);
+              Alert.alert('Error', 'Failed to pick image');
+            }
+          }
+        },
+        {
+          text: 'Camera',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Camera permission is required');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                quality: 0.8,
+              });
+              if (!result.canceled && result.assets[0]) {
+                setAttachments(prev => [...prev, {
+                  uri: result.assets[0].uri,
+                  name: `photo_${Date.now()}.jpg`,
+                  type: 'image'
+                }]);
+              }
+            } catch (error) {
+              console.error('Camera error:', error);
+              Alert.alert('Error', 'Failed to take photo');
+            }
+          }
+        },
+        {
+          text: 'Documents',
+          onPress: async () => {
+            try {
+              const result = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                multiple: true,
+              });
+              if (!result.canceled && result.assets) {
+                const newAttachments = result.assets.map(asset => ({
+                  uri: asset.uri,
+                  name: asset.name,
+                  type: 'document'
+                }));
+                setAttachments(prev => [...prev, ...newAttachments]);
+              }
+            } catch (error) {
+              console.error('Document picker error:', error);
+              Alert.alert('Error', 'Failed to pick document');
+            }
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
 
   const loadTeamMembers = async () => {
     try {
@@ -291,11 +377,15 @@ export default function ProjectTasksScreen() {
     setShowTaskModal(false);
     // Reset form
     setTaskName('');
-    setLocation('at_site');
+    setLocation('');
     setAssignedTo('');
     setStartDate(new Date());
     setEndDate(new Date());
     setDescription('');
+    setIsHighPriority(false);
+    setShowLocationDropdown(false);
+    setAttachments([]);
+    setSelectedAssignees([]);
   };
 
   const handleCreateTask = async () => {
@@ -304,22 +394,26 @@ export default function ProjectTasksScreen() {
       return;
     }
 
+    // Require at least 2 team members
+    if (selectedAssignees.length < 2) {
+      Alert.alert('Error', 'Please assign at least 2 team members to this task');
+      return;
+    }
+
     try {
       setSubmitting(true);
       
-      // Create task via API
+      // Create task via API - send selectedAssignees array
       await api.post('/api/tasks', {
         project_id: projectId,
         title: taskName,
         status: 'todo',
-        assigned_to: assignedTo || null,
-        due_date: endDate.toISOString().split('T')[0],
+        assigned_to: selectedAssignees,
         description: description,
-        // Add location as metadata
-        metadata: {
-          location,
-          department: selectedDepartment,
-        }
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+        high_priority: isHighPriority,
+        location: location || null,
       });
 
       Alert.alert('Success', 'Task created successfully');
@@ -523,192 +617,219 @@ export default function ProjectTasksScreen() {
       <Modal
         visible={showTaskModal}
         animationType="slide"
-        transparent={true}
+        transparent={false}
         onRequestClose={handleCloseModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Modal Header */}
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Task create</Text>
-                <TouchableOpacity onPress={handleCloseModal}>
-                  <Ionicons name="close" size={24} color="#1C1C1E" />
-                </TouchableOpacity>
-              </View>
+        <View style={styles.createTaskScreen}>
+          {/* Header */}
+          <View style={styles.createTaskHeader}>
+            <TouchableOpacity onPress={handleCloseModal} style={styles.backButton}>
+              <Ionicons name="chevron-back" size={24} color="#1C1C1E" />
+            </TouchableOpacity>
+            <Text style={styles.createTaskTitle}>Create New Task</Text>
+            <TouchableOpacity style={styles.menuButton}>
+              <Ionicons name="ellipsis-vertical" size={20} color="#1C1C1E" />
+            </TouchableOpacity>
+          </View>
 
-              {/* Project Name (read-only) */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>Project</Text>
-                <View style={styles.readOnlyField}>
-                  <Text style={styles.readOnlyText}>{projectName}</Text>
-                </View>
-              </View>
+          <ScrollView style={styles.createTaskContent} showsVerticalScrollIndicator={false}>
+            {/* High Priority Toggle */}
+            <View style={styles.priorityRow}>
+              <Text style={styles.priorityLabel}>High Priority</Text>
+              <TouchableOpacity 
+                style={[styles.toggleSwitch, isHighPriority && styles.toggleSwitchActive]}
+                onPress={() => setIsHighPriority(!isHighPriority)}
+              >
+                <View style={[styles.toggleKnob, isHighPriority && styles.toggleKnobActive]} />
+              </TouchableOpacity>
+            </View>
 
-              {/* Due Date */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>Due by</Text>
-                <TouchableOpacity 
-                  style={styles.dateButton}
-                  onPress={() => setShowEndDatePicker(true)}
-                >
-                  <Text style={styles.dateText}>
-                    {endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-                </TouchableOpacity>
+            {/* Select Project (read-only showing current project) */}
+            <View style={styles.inputField}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputText}>{projectName || 'Select Project*'}</Text>
+                <Ionicons name="chevron-down" size={20} color="#8E8E93" />
               </View>
+            </View>
 
-              {/* Task Name */}
-              <View style={styles.formField}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>Task name</Text>
-                  <VoiceToTextButton
-                    onResult={(text) => setTaskName(prev => prev ? `${prev} ${text}` : text)}
-                    size="small"
-                  />
-                </View>
+            {/* Task Title */}
+            <View style={styles.inputFieldRow}>
+              <View style={styles.inputFieldFlex}>
                 <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter task name"
+                  style={styles.textInputBordered}
+                  placeholder="Task Title"
                   value={taskName}
                   onChangeText={setTaskName}
                   placeholderTextColor="#8E8E93"
                 />
               </View>
+              <VoiceToTextButton
+                onResult={(text) => setTaskName(prev => prev ? `${prev} ${text}` : text)}
+                size="small"
+                color="#877ED2"
+              />
+            </View>
 
-              {/* Location */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>Location</Text>
-                <View style={styles.radioGroup}>
-                  <TouchableOpacity 
-                    style={styles.radioOption}
-                    onPress={() => setLocation('at_site')}
-                  >
-                    <View style={[styles.radioButton, location === 'at_site' && styles.radioButtonSelected]}>
-                      {location === 'at_site' && <View style={styles.radioButtonInner} />}
-                    </View>
-                    <Text style={styles.radioLabel}>At site</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.radioOption}
-                    onPress={() => setLocation('factory')}
-                  >
-                    <View style={[styles.radioButton, location === 'factory' && styles.radioButtonSelected]}>
-                      {location === 'factory' && <View style={styles.radioButtonInner} />}
-                    </View>
-                    <Text style={styles.radioLabel}>Factory</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.radioOption}
-                    onPress={() => setLocation('office')}
-                  >
-                    <View style={[styles.radioButton, location === 'office' && styles.radioButtonSelected]}>
-                      {location === 'office' && <View style={styles.radioButtonInner} />}
-                    </View>
-                    <Text style={styles.radioLabel}>Office</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Assign to */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>Assign to</Text>
-                <View style={styles.assignToContainer}>
-                  <Text style={styles.assignToPlaceholder}>
-                    {selectedAssignees.length > 0 
-                      ? `${selectedAssignees.length} assignee${selectedAssignees.length > 1 ? 's' : ''} selected`
-                      : 'No assignees selected'}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.selectAssigneesButton}
-                    onPress={() => setShowAssigneeModal(true)}
-                  >
-                    <Text style={styles.selectAssigneesButtonText}>Select assignees</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Start Date */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>Start date</Text>
-                <TouchableOpacity 
-                  style={styles.dateButton}
-                  onPress={() => setShowStartDatePicker(true)}
-                >
-                  <Text style={styles.dateText}>
-                    {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-                </TouchableOpacity>
-              </View>
-
-              {/* End Date */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>End date</Text>
-                <TouchableOpacity 
-                  style={styles.dateButton}
-                  onPress={() => setShowEndDatePicker(true)}
-                >
-                  <Text style={styles.dateText}>
-                    {endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={20} color="#007AFF" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Attachments - Placeholder */}
-              <View style={styles.formField}>
-                <Text style={styles.label}>Attachments</Text>
-                <TouchableOpacity style={styles.attachmentButton}>
-                  <Ionicons name="attach-outline" size={20} color="#007AFF" />
-                  <Text style={styles.attachmentText}>Add attachments (coming soon)</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Description */}
-              <View style={[styles.formField, { marginBottom: 8 }]}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.label}>Description / Instructions</Text>
-                  <VoiceToTextButton
-                    onResult={(text) => setDescription(prev => prev ? `${prev} ${text}` : text)}
-                    size="small"
-                  />
-                </View>
+            {/* Description */}
+            <View style={styles.inputFieldRow}>
+              <View style={styles.inputFieldFlex}>
                 <TextInput
-                  style={[styles.textInput, styles.textArea]}
-                  placeholder="Enter task description or instructions"
+                  style={styles.textAreaBordered}
+                  placeholder="Description*"
                   value={description}
                   onChangeText={setDescription}
                   multiline
-                  numberOfLines={4}
+                  numberOfLines={3}
                   placeholderTextColor="#8E8E93"
                 />
               </View>
+              <VoiceToTextButton
+                onResult={(text) => setDescription(prev => prev ? `${prev} ${text}` : text)}
+                size="small"
+                color="#877ED2"
+                style={styles.voiceButtonTop}
+              />
+            </View>
 
-              {/* Form Actions */}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleCloseModal}
-                  disabled={submitting}
+            {/* Start and End Date Row */}
+            <View style={styles.dateRow}>
+              <TouchableOpacity 
+                style={styles.dateField}
+                onPress={() => setShowStartDatePicker(true)}
+              >
+                <Text style={[styles.dateFieldText, !startDate && styles.placeholderText]}>
+                  {startDate ? startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Start*'}
+                </Text>
+                <Ionicons name="calendar-outline" size={18} color="#877ED2" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.dateField}
+                onPress={() => setShowEndDatePicker(true)}
+              >
+                <Text style={[styles.dateFieldText, !endDate && styles.placeholderText]}>
+                  {endDate ? endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'End*'}
+                </Text>
+                <Ionicons name="calendar-outline" size={18} color="#877ED2" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Location Dropdown */}
+            <TouchableOpacity 
+              style={styles.inputField}
+              onPress={() => setShowLocationDropdown(!showLocationDropdown)}
+            >
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputText, !location && styles.placeholderText]}>
+                  {location || 'Location'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#8E8E93" />
+              </View>
+            </TouchableOpacity>
+            
+            {showLocationDropdown && (
+              <View style={styles.dropdownList}>
+                {['At Site', 'Factory', 'Office', 'Remote'].map((loc) => (
+                  <TouchableOpacity 
+                    key={loc}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setLocation(loc);
+                      setShowLocationDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{loc}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Team Section */}
+            <View style={styles.teamSection}>
+              <View style={styles.teamHeader}>
+                <Text style={styles.teamTitle}>Team ({selectedAssignees.length})</Text>
+                <TouchableOpacity 
+                  style={styles.addTeamButton}
+                  onPress={() => setShowAssigneeModal(true)}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.createButton, submitting && styles.createButtonDisabled]}
-                  onPress={handleCreateTask}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.createButtonText}>Create Task</Text>
-                  )}
+                  <Ionicons name="add" size={20} color="#877ED2" />
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
+              
+              {/* Selected Team Members */}
+              {selectedAssignees.length > 0 && teamMembers.filter(m => selectedAssignees.includes(m.id)).map((member) => (
+                <View key={member.id} style={styles.teamMemberRow}>
+                  <View style={styles.teamMemberInfo}>
+                    <View style={styles.teamMemberAvatar}>
+                      <Text style={styles.teamMemberInitials}>
+                        {member.first_name?.[0]}{member.last_name?.[0]}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={styles.teamMemberName}>{member.first_name} {member.last_name}</Text>
+                      <Text style={styles.teamMemberRole}>{member.department || 'Team Member'}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => setSelectedAssignees(prev => prev.filter(id => id !== member.id))}
+                  >
+                    <Ionicons name="close" size={20} color="#8E8E93" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+
+            {/* Attachment Section */}
+            <View style={styles.attachmentSection}>
+              <Text style={styles.attachmentTitle}>Attachment ({attachments.length})</Text>
+              
+              {attachments.length > 0 && (
+                <View style={styles.attachmentPreviewRow}>
+                  {attachments.map((att, idx) => (
+                    <TouchableOpacity 
+                      key={idx} 
+                      style={styles.attachmentPreview}
+                      onPress={() => {
+                        Alert.alert(
+                          'Remove Attachment',
+                          `Remove ${att.name}?`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Remove', style: 'destructive', onPress: () => setAttachments(prev => prev.filter((_, i) => i !== idx)) }
+                          ]
+                        );
+                      }}
+                    >
+                      {att.type === 'image' ? (
+                        <Image source={{ uri: att.uri }} style={styles.attachmentImage} />
+                      ) : (
+                        <Ionicons name="document" size={40} color="#8E8E93" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              
+              <View style={styles.addFilesRow}>
+                <Text style={styles.addFilesText}>Add files</Text>
+                <TouchableOpacity onPress={handlePickAttachment}>
+                  <Text style={styles.attachButtonText}>Attach</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Create Button */}
+            <TouchableOpacity
+              style={[styles.createTaskButton, submitting && styles.createTaskButtonDisabled]}
+              onPress={handleCreateTask}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.createTaskButtonText}>Create Task</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {/* Date Pickers */}
@@ -1511,5 +1632,342 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  // New Create Task Screen Styles
+  createTaskScreen: {
+    flex: 1,
+    backgroundColor: '#F8F8FA',
+  },
+  createTaskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  backButton: {
+    padding: 4,
+  },
+  createTaskTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  menuButton: {
+    padding: 4,
+  },
+  createTaskContent: {
+    flex: 1,
+    padding: 16,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  priorityLabel: {
+    fontSize: 16,
+    color: '#1C1C1E',
+  },
+  toggleSwitch: {
+    width: 52,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5E5EA',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleSwitchActive: {
+    backgroundColor: '#877ED2',
+  },
+  toggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: 'flex-end',
+  },
+  inputField: {
+    marginBottom: 16,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#1C1C1E',
+  },
+  placeholderText: {
+    color: '#8E8E93',
+  },
+  inputWithVoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingLeft: 16,
+    paddingRight: 8,
+  },
+  taskTitleInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1C1C1E',
+    paddingVertical: 14,
+  },
+  descriptionInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1C1C1E',
+    paddingVertical: 14,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  dateField: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dateFieldText: {
+    fontSize: 16,
+    color: '#1C1C1E',
+  },
+  dropdownList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    marginTop: -12,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F7',
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#1C1C1E',
+  },
+  teamSection: {
+    marginBottom: 20,
+  },
+  teamHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  teamTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  addTeamButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0EFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  teamMemberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  teamMemberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  teamMemberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F0E6D3',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  teamMemberInitials: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8B7355',
+  },
+  teamMemberName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1C1C1E',
+  },
+  teamMemberRole: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  attachmentSection: {
+    marginBottom: 24,
+  },
+  attachmentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 12,
+  },
+  attachmentPreviewRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  attachmentPreview: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  addFilesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  addFilesText: {
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  attachButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#877ED2',
+  },
+  createTaskButton: {
+    backgroundColor: '#877ED2',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  createTaskButtonDisabled: {
+    opacity: 0.6,
+  },
+  createTaskButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // New styles for voice button outside input
+  inputFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 16,
+  },
+  inputFieldFlex: {
+    flex: 1,
+  },
+  textInputBordered: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1C1C1E',
+  },
+  textAreaBordered: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1C1C1E',
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  voiceButtonOutside: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F0EFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  voiceButtonTop: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F0EFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 1,
+  },
+  attachmentImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  removeAttachmentButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  attachmentPreviewWrapper: {
+    position: 'relative',
   },
 });

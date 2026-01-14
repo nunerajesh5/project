@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
     }
     
     const offset = (pageNum - 1) * limitNum;
-    let where = 'WHERE te.is_active = true';
+    let where = 'WHERE 1=1';
     const params = [];
     
     if (taskId) { 
@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
     }
     if (projectId) {
       params.push(projectId);
-      where += ` AND t.project_id = $${params.length}`;
+      where += ` AND te.task_id IN (SELECT task_id FROM tasks WHERE project_id = $${params.length})`;
     }
     if (startDate) {
       params.push(startDate);
@@ -59,14 +59,14 @@ router.get('/', async (req, res) => {
     const offsetParam = params.length + 2;
     
     const list = await pool.query(
-      `SELECT te.id, te.task_id, te.employee_id, te.work_date, te.start_time, te.end_time, te.duration_minutes, te.cost, te.description, te.created_at, te.updated_at,
-              t.title as task_title, t.status as task_status,
-              p.name as project_name, p.status as project_status,
-              e.first_name, e.last_name, e.employee_id as emp_id
+      `SELECT te.id, te.task_id, te.employee_id, te.work_date, te.start_time, te.end_time, te.duration_minutes, te.created_at, te.updated_at,
+              t.task_name as task_title, t.status as task_status,
+              p.project_name as project_name, p.status as project_status,
+              u.first_name, u.last_name, u.user_id as emp_id
        FROM time_entries te
-       JOIN tasks t ON te.task_id = t.id
-       JOIN projects p ON t.project_id = p.id
-       JOIN employees e ON te.employee_id = e.id
+       JOIN tasks t ON te.task_id = t.task_id
+       JOIN projects p ON t.project_id = p.project_id
+       JOIN users u ON te.employee_id = u.user_id
        ${where}
        ORDER BY te.work_date DESC, te.start_time DESC
        LIMIT $${limitParam} OFFSET $${offsetParam}`,
@@ -77,9 +77,9 @@ router.get('/', async (req, res) => {
     const count = await pool.query(
       `SELECT COUNT(*) as count 
        FROM time_entries te
-       JOIN tasks t ON te.task_id = t.id
-       JOIN projects p ON t.project_id = p.id
-       JOIN employees e ON te.employee_id = e.id
+       JOIN tasks t ON te.task_id = t.task_id
+       JOIN projects p ON t.project_id = p.project_id
+       JOIN users u ON te.employee_id = u.user_id
        ${where}`,
       params
     );
@@ -110,15 +110,15 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `SELECT te.id, te.task_id, te.employee_id, te.work_date, te.start_time, te.end_time, te.duration_minutes, te.cost, te.description, te.created_at, te.updated_at,
-              t.title as task_title, t.status as task_status,
-              p.name as project_name, p.status as project_status,
-              e.first_name, e.last_name, e.employee_id as emp_id
+      `SELECT te.id, te.task_id, te.employee_id, te.work_date, te.start_time, te.end_time, te.duration_minutes, te.created_at, te.updated_at,
+              t.task_name as task_title, t.status as task_status,
+              p.project_name as project_name, p.status as project_status,
+              u.first_name, u.last_name, u.user_id as emp_id
        FROM time_entries te
-       JOIN tasks t ON te.task_id = t.id
-       JOIN projects p ON t.project_id = p.id
-       JOIN employees e ON te.employee_id = e.id
-       WHERE te.id = $1 AND te.is_active = true`,
+       JOIN tasks t ON te.task_id = t.task_id
+       JOIN projects p ON t.project_id = p.project_id
+       JOIN users u ON te.employee_id = u.user_id
+       WHERE te.id = $1`,
       [id]
     );
     if (result.rows.length === 0) {
@@ -148,10 +148,9 @@ router.post('/', [
   }),
   body('startTime').isISO8601().withMessage('Valid start time is required'),
   body('endTime').isISO8601().withMessage('Valid end time is required'),
-  body('description').optional().isString(),
 ], handleValidation, async (req, res) => {
   try {
-    const { taskId, employeeId, workDate, startTime, endTime, description = '' } = req.body;
+    const { taskId, employeeId, workDate, startTime, endTime } = req.body;
     const userRole = req.user?.role;
     const userEmail = req.user?.email;
     
@@ -161,7 +160,7 @@ router.post('/', [
     }
     
     // Verify task exists
-    const taskExists = await pool.query('SELECT id FROM tasks WHERE id = $1', [taskId]);
+    const taskExists = await pool.query('SELECT task_id as id FROM tasks WHERE task_id = $1', [taskId]);
     if (taskExists.rows.length === 0) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -171,17 +170,17 @@ router.post('/', [
     
     // If employee role, they can only create entries for themselves
     if (userRole === 'employee') {
-      // Find employee by email (users table email -> employees table email)
+      // Find user by email
       if (userEmail) {
-        const empByEmail = await pool.query('SELECT id FROM employees WHERE email = $1 AND is_active = true', [userEmail]);
-        if (empByEmail.rows.length > 0) {
-          finalEmployeeId = empByEmail.rows[0].id;
-          // If employeeId was provided, verify it matches the logged-in employee
+        const userByEmail = await pool.query('SELECT user_id FROM users WHERE email_id = $1 AND is_active = true', [userEmail]);
+        if (userByEmail.rows.length > 0) {
+          finalEmployeeId = userByEmail.rows[0].user_id;
+          // If employeeId was provided, verify it matches the logged-in user
           if (employeeId && employeeId !== finalEmployeeId) {
             return res.status(403).json({ error: 'Employees can only create time entries for themselves' });
           }
         } else {
-          return res.status(404).json({ error: 'Employee record not found for your account' });
+          return res.status(404).json({ error: 'User record not found for your account' });
         }
       } else {
         return res.status(400).json({ error: 'Employee ID is required' });
@@ -201,13 +200,13 @@ router.post('/', [
       return res.status(400).json({ error: 'Employee ID could not be determined' });
     }
     
-    // Verify employee exists and get hourly rate
-    const employeeExists = await pool.query('SELECT id, hourly_rate FROM employees WHERE id = $1 AND is_active = true', [finalEmployeeId]);
-    if (employeeExists.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found or inactive' });
+    // Verify user exists and get hourly rate
+    const userExists = await pool.query('SELECT user_id, hourly_rate FROM users WHERE user_id = $1 AND is_active = true', [finalEmployeeId]);
+    if (userExists.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found or inactive' });
     }
     
-    const employee = employeeExists.rows[0];
+    const employee = userExists.rows[0];
     const hourlyRate = parseFloat(employee.hourly_rate) || 0;
     
     // Calculate duration
@@ -259,10 +258,10 @@ router.post('/', [
     let result;
     try {
       result = await pool.query(
-        `INSERT INTO time_entries (task_id, employee_id, work_date, start_time, end_time, duration_minutes, cost, description)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO time_entries (task_id, employee_id, work_date, start_time, end_time, duration_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [taskId, finalEmployeeId, formattedWorkDate, startTime, endTime, durationMinutes, cost, description || '']
+        [taskId, finalEmployeeId, formattedWorkDate, startTime, endTime, durationMinutes]
       );
       
       if (!result || !result.rows || result.rows.length === 0) {
@@ -277,14 +276,14 @@ router.post('/', [
     // Create activity log
     try {
       const taskInfo = await pool.query(
-        `SELECT t.title, t.project_id, p.name as project_name
+        `SELECT t.task_name, t.project_id, p.project_name as project_name
          FROM tasks t
-         JOIN projects p ON t.project_id = p.id
-         WHERE t.id = $1`,
+         JOIN projects p ON t.project_id = p.project_id
+         WHERE t.task_id = $1`,
         [taskId]
       );
       const employeeInfo = await pool.query(
-        `SELECT first_name, last_name FROM employees WHERE id = $1`,
+        `SELECT first_name, last_name FROM users WHERE user_id = $1`,
         [finalEmployeeId]
       );
       
@@ -293,19 +292,23 @@ router.post('/', [
         const employee = employeeInfo.rows[0];
         const employeeName = `${employee.first_name} ${employee.last_name}`;
         const hours = (durationMinutes / 60).toFixed(1);
+        const actorId = req.user?.id || null;
+        const actorName = req.user?.first_name ? `${req.user.first_name} ${req.user.last_name}` : null;
         
         await pool.query(
-          `INSERT INTO activity_logs (type, employee_id, employee_name, project_id, project_name, task_id, task_title, description)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          `INSERT INTO activity_logs (action_type, actor_id, actor_name, employee_id, employee_name, project_id, project_name, task_id, task_title, description)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             'time_logged',
+            actorId,
+            actorName,
             finalEmployeeId,
             employeeName,
             task.project_id,
             task.project_name,
             taskId,
-            task.title,
-            `${employeeName} logged ${hours} hours on ${task.title}`
+            task.task_name,
+            `${employeeName} logged ${hours} hours on ${task.task_name}`
           ]
         );
       }
@@ -345,16 +348,15 @@ router.put('/:id', [
   body('employeeId').optional().isUUID().withMessage('Valid employee ID required'),
   body('startTime').optional().isISO8601().withMessage('Valid start time required'),
   body('endTime').optional().isISO8601().withMessage('Valid end time required'),
-  body('description').optional().isString(),
 ], handleValidation, async (req, res) => {
   try {
     const { id } = req.params;
-    const { projectId, employeeId, startTime, endTime, description } = req.body;
+    const { projectId, employeeId, startTime, endTime } = req.body;
     const userRole = req.user?.role;
     const userEmail = req.user?.email;
     
     // Check if time entry exists
-    const exists = await pool.query('SELECT * FROM time_entries WHERE id = $1 AND is_active = true', [id]);
+    const exists = await pool.query('SELECT * FROM time_entries WHERE id = $1', [id]);
     if (exists.rows.length === 0) {
       return res.status(404).json({ error: 'Time entry not found' });
     }
@@ -363,13 +365,13 @@ router.put('/:id', [
     
     // Permission check: Employees can only edit their own time entries
     if (userRole === 'employee') {
-      // Find employee by email
+      // Find user by email
       if (userEmail) {
-        const empByEmail = await pool.query('SELECT id FROM employees WHERE email = $1 AND is_active = true', [userEmail]);
-        if (empByEmail.rows.length === 0) {
-          return res.status(403).json({ error: 'Employee record not found for your account' });
+        const userByEmail = await pool.query('SELECT user_id FROM users WHERE email_id = $1 AND is_active = true', [userEmail]);
+        if (userByEmail.rows.length === 0) {
+          return res.status(403).json({ error: 'User record not found for your account' });
         }
-        const currentEmployeeId = empByEmail.rows[0].id;
+        const currentEmployeeId = userByEmail.rows[0].user_id;
         
         // Check if the time entry belongs to this employee
         if (timeEntry.employee_id !== currentEmployeeId) {
@@ -389,17 +391,17 @@ router.put('/:id', [
     
     // Verify project exists if being updated
     if (projectId) {
-      const projectExists = await pool.query('SELECT id FROM projects WHERE id = $1', [projectId]);
+      const projectExists = await pool.query('SELECT project_id as id FROM projects WHERE project_id = $1', [projectId]);
       if (projectExists.rows.length === 0) {
         return res.status(404).json({ error: 'Project not found' });
       }
     }
     
-    // Verify employee exists if being updated (only for admins/managers)
+    // Verify user exists if being updated (only for admins/managers)
     if (employeeId && userRole !== 'employee') {
-      const employeeExists = await pool.query('SELECT id, hourly_rate FROM employees WHERE id = $1 AND is_active = true', [employeeId]);
-      if (employeeExists.rows.length === 0) {
-        return res.status(404).json({ error: 'Employee not found or inactive' });
+      const userExists = await pool.query('SELECT user_id, hourly_rate FROM users WHERE user_id = $1 AND is_active = true', [employeeId]);
+      if (userExists.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found or inactive' });
       }
     }
     
@@ -408,16 +410,16 @@ router.put('/:id', [
     
     const finalStartTime = startTime || currentEntry.start_time;
     const finalEndTime = endTime || currentEntry.end_time;
-    // For employees, always use their own employee_id
+    // For employees, always use their own user_id
     let finalEmployeeId;
     if (userRole === 'employee') {
-      const empByEmail = await pool.query('SELECT id FROM employees WHERE email = $1 AND is_active = true', [userEmail]);
-      finalEmployeeId = empByEmail.rows[0].id;
+      const userByEmail = await pool.query('SELECT user_id FROM users WHERE email_id = $1 AND is_active = true', [userEmail]);
+      finalEmployeeId = userByEmail.rows[0].user_id;
     } else {
       finalEmployeeId = employeeId || currentEntry.employee_id;
     }
     
-    // Calculate new duration and cost
+    // Calculate new duration
     const start = new Date(finalStartTime);
     const end = new Date(finalEndTime);
     const durationMinutes = Math.round((end - start) / (1000 * 60));
@@ -426,14 +428,9 @@ router.put('/:id', [
       return res.status(400).json({ error: 'End time must be after start time' });
     }
     
-    // Get employee hourly rate for cost calculation
-    const employee = await pool.query('SELECT hourly_rate FROM employees WHERE id = $1', [finalEmployeeId]);
-    const hourlyRate = employee.rows[0].hourly_rate || 0;
-    const cost = (durationMinutes / 60) * hourlyRate;
-    
     const result = await pool.query(
-      'UPDATE time_entries SET project_id = COALESCE($1, project_id), employee_id = COALESCE($2, employee_id), start_time = COALESCE($3, start_time), end_time = COALESCE($4, end_time), duration_minutes = $5, cost = $6, description = COALESCE($7, description), updated_at = CURRENT_TIMESTAMP WHERE id = $8 RETURNING *',
-      [projectId, employeeId, startTime, endTime, durationMinutes, cost, description, id]
+      'UPDATE time_entries SET employee_id = COALESCE($1, employee_id), start_time = COALESCE($2, start_time), end_time = COALESCE($3, end_time), duration_minutes = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *',
+      [employeeId, startTime, endTime, durationMinutes, id]
     );
     res.json({ timeEntry: result.rows[0] });
   } catch (err) {
@@ -441,12 +438,12 @@ router.put('/:id', [
   }
 });
 
-// DELETE /api/time-entries/:id - Soft delete time entry
+// DELETE /api/time-entries/:id - Delete time entry
 router.delete('/:id', requireRole(['admin', 'manager']), async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await pool.query('UPDATE time_entries SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *', [id]);
+    const result = await pool.query('DELETE FROM time_entries WHERE id = $1 RETURNING id', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Time entry not found' });
     }
@@ -461,7 +458,7 @@ router.get('/summary/overview', async (req, res) => {
   try {
     const { startDate, endDate, projectId, employeeId } = req.query;
     
-    let where = 'WHERE te.is_active = true';
+    let where = 'WHERE 1=1';
     const params = [];
     
     if (startDate) {
@@ -474,7 +471,7 @@ router.get('/summary/overview', async (req, res) => {
     }
     if (projectId) {
       params.push(projectId);
-      where += ` AND te.project_id = $${params.length}`;
+      where += ` AND te.task_id IN (SELECT task_id FROM tasks WHERE project_id = $${params.length})`;
     }
     if (employeeId) {
       params.push(employeeId);
@@ -483,10 +480,10 @@ router.get('/summary/overview', async (req, res) => {
     
     const [totalHours, totalCost, entryCount, topEmployees, topProjects] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(duration_minutes), 0) as total_minutes FROM time_entries te ${where}`, params),
-      pool.query(`SELECT COALESCE(SUM(cost), 0) as total_cost FROM time_entries te ${where}`, params),
+      pool.query(`SELECT 0 as total_cost`, []),
       pool.query(`SELECT COUNT(*) as count FROM time_entries te ${where}`, params),
-      pool.query(`SELECT e.first_name, e.last_name, e.employee_id, SUM(te.duration_minutes) as total_minutes, SUM(te.cost) as total_cost FROM time_entries te JOIN employees e ON te.employee_id = e.id ${where} GROUP BY e.id, e.first_name, e.last_name, e.employee_id ORDER BY total_minutes DESC LIMIT 5`, params),
-      pool.query(`SELECT p.name, p.status, SUM(te.duration_minutes) as total_minutes, SUM(te.cost) as total_cost FROM time_entries te JOIN projects p ON te.project_id = p.id ${where} GROUP BY p.id, p.name, p.status ORDER BY total_minutes DESC LIMIT 5`, params)
+      pool.query(`SELECT u.first_name, u.last_name, u.user_id, SUM(te.duration_minutes) as total_minutes FROM time_entries te JOIN users u ON te.employee_id = u.user_id ${where} GROUP BY u.user_id, u.first_name, u.last_name ORDER BY total_minutes DESC LIMIT 5`, params),
+      pool.query(`SELECT p.project_name, p.status, SUM(te.duration_minutes) as total_minutes FROM time_entries te JOIN tasks t ON te.task_id = t.task_id JOIN projects p ON t.project_id = p.project_id ${where} GROUP BY p.project_id, p.project_name, p.status ORDER BY total_minutes DESC LIMIT 5`, params)
     ]);
     
     res.json({

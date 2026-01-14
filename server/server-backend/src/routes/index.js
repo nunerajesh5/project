@@ -12,5 +12,8 @@ module.exports = {
   permissions: require('./permissions'),
   organizations: require('./organizations'),
   proofOfWork: require('./proofOfWork'),
+  countries: require('./countries'),
+  states: require('./states'),
+  designations: require('./designations'),
 };
 

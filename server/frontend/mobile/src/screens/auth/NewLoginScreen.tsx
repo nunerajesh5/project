@@ -407,7 +407,7 @@ export default function NewLoginScreen() {
               <Ionicons 
                 name="mail-outline" 
                 size={20} 
-                color={loginMethod === 'email' ? '#FFFFFF' : '#007AFF'} 
+                color={loginMethod === 'email' ? '#FFFFFF' : '#877ED2'} 
               />
               <Text style={[
                 styles.toggleButtonText,
@@ -427,7 +427,7 @@ export default function NewLoginScreen() {
               <Ionicons 
                 name="phone-portrait-outline" 
                 size={20} 
-                color={loginMethod === 'phone' ? '#FFFFFF' : '#007AFF'} 
+                color={loginMethod === 'phone' ? '#FFFFFF' : '#877ED2'} 
               />
               <Text style={[
                 styles.toggleButtonText,
@@ -728,12 +728,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   toggleButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#877ED2',
   },
   toggleButtonText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#007AFF',
+    color: '#877ED2',
     marginLeft: 8,
   },
   toggleButtonTextActive: {

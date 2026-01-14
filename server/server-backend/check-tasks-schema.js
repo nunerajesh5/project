@@ -1,0 +1,30 @@
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  host: 'localhost',
+  port: 5432,
+  database: 'project_time_manager',
+  user: 'postgres',
+  password: 'Super@123'
+});
+
+async function checkTasksSchema() {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'tasks' 
+      ORDER BY ordinal_position
+    `);
+    
+    console.log('Tasks table columns:');
+    result.rows.forEach(c => console.log('  ' + c.column_name + ': ' + c.data_type));
+    
+  } catch (err) {
+    console.error('Error:', err.message);
+  } finally {
+    await pool.end();
+  }
+}
+
+checkTasksSchema();

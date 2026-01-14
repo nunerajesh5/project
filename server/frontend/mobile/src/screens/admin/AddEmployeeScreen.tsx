@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image, Modal, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image, Modal, FlatList, TextInputProps } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,58 +8,142 @@ import * as ImagePicker from 'expo-image-picker';
 import { api } from '../../api/client';
 import { Ionicons } from '@expo/vector-icons';
 
-// Dropdown data
-const SALUTATIONS = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
-const SKILLS = ['Developer', 'Designer', 'Manager', 'Analyst', 'Engineer', 'Consultant', 'Architect', 'QA Engineer', 'DevOps', 'Data Scientist'];
-const COUNTRIES = ['India', 'United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'Singapore', 'UAE', 'Japan'];
-const STATES: { [key: string]: string[] } = {
-  'India': ['Andhra Pradesh', 'Karnataka', 'Tamil Nadu', 'Maharashtra', 'Delhi', 'Gujarat', 'Rajasthan', 'West Bengal', 'Kerala', 'Telangana'],
-  'United States': ['California', 'Texas', 'New York', 'Florida', 'Illinois', 'Pennsylvania', 'Ohio', 'Georgia', 'Michigan', 'Washington'],
-  'United Kingdom': ['England', 'Scotland', 'Wales', 'Northern Ireland'],
-  'Canada': ['Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Manitoba', 'Saskatchewan'],
-  'Australia': ['New South Wales', 'Victoria', 'Queensland', 'Western Australia', 'South Australia'],
-  'Germany': ['Bavaria', 'Berlin', 'Hamburg', 'Hesse', 'North Rhine-Westphalia'],
-  'France': ['Île-de-France', 'Provence-Alpes-Côte d\'Azur', 'Occitanie', 'Nouvelle-Aquitaine'],
-  'Singapore': ['Central Region', 'East Region', 'North Region', 'North-East Region', 'West Region'],
-  'UAE': ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Fujairah'],
-  'Japan': ['Tokyo', 'Osaka', 'Kyoto', 'Hokkaido', 'Fukuoka'],
-};
-const PHONE_CODES = [
-  { code: '+91', country: 'India' },
-  { code: '+1', country: 'USA/Canada' },
-  { code: '+44', country: 'UK' },
-  { code: '+61', country: 'Australia' },
-  { code: '+49', country: 'Germany' },
-  { code: '+33', country: 'France' },
-  { code: '+65', country: 'Singapore' },
-  { code: '+971', country: 'UAE' },
-  { code: '+81', country: 'Japan' },
-];
+// Theme colors
+const PRIMARY_PURPLE = '#6C5CE7';
+const TEXT_DARK = '#333333';
 
-interface DropdownProps {
-  placeholder: string;
+// Floating Label Input Component
+interface FloatingLabelInputProps extends TextInputProps {
+  label: string;
+  required?: boolean;
+}
+
+function FloatingLabelInput({ label, required, style, ...rest }: FloatingLabelInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = typeof rest.value === 'string' ? rest.value.trim().length > 0 : !!rest.value;
+  const showFloatingLabel = isFocused || hasValue;
+  const displayLabel = required ? `${label}*` : label;
+
+  return (
+    <View style={styles.floatingContainer}>
+      {showFloatingLabel && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {displayLabel}
+        </Text>
+      )}
+      <TextInput
+        {...rest}
+        placeholder={showFloatingLabel ? '' : displayLabel}
+        placeholderTextColor="#999"
+        style={[
+          styles.floatingInput,
+          showFloatingLabel && styles.floatingInputWithLabel,
+          isFocused && styles.floatingInputFocused,
+          style,
+        ]}
+        onFocus={(e) => {
+          setIsFocused(true);
+          rest.onFocus && rest.onFocus(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          rest.onBlur && rest.onBlur(e);
+        }}
+      />
+    </View>
+  );
+}
+
+// Floating Label Phone Input Component
+interface FloatingLabelPhoneInputProps extends TextInputProps {
+  label: string;
+  required?: boolean;
+  phoneCode: string;
+  onPhoneCodePress: () => void;
+}
+
+function FloatingLabelPhoneInput({ label, required, phoneCode, onPhoneCodePress, style, ...rest }: FloatingLabelPhoneInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const hasValue = typeof rest.value === 'string' ? rest.value.trim().length > 0 : !!rest.value;
+  const showFloatingLabel = isFocused || hasValue;
+  const displayLabel = required ? `${label}*` : label;
+
+  return (
+    <View style={styles.floatingContainer}>
+      {showFloatingLabel && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {displayLabel}
+        </Text>
+      )}
+      <View style={[
+        styles.floatingPhoneWrapper,
+        isFocused && styles.floatingInputFocused,
+      ]}>
+        <TouchableOpacity style={styles.floatingCountryCodeContainer} onPress={onPhoneCodePress}>
+          <Text style={styles.floatingCountryCode}>{phoneCode}</Text>
+          <Ionicons name="chevron-down" size={16} color="#666" style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+        <View style={styles.floatingPhoneDivider} />
+        <TextInput
+          {...rest}
+          placeholder={showFloatingLabel ? '' : displayLabel}
+          placeholderTextColor="#999"
+          style={[
+            styles.floatingPhoneInput,
+            showFloatingLabel && styles.floatingPhoneInputWithLabel,
+            style,
+          ]}
+          onFocus={(e) => {
+            setIsFocused(true);
+            rest.onFocus && rest.onFocus(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            rest.onBlur && rest.onBlur(e);
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+// Floating Label Dropdown Component
+interface FloatingLabelDropdownProps {
+  label: string;
   value: string;
   options: string[];
   onSelect: (value: string) => void;
   required?: boolean;
 }
 
-const Dropdown: React.FC<DropdownProps> = ({ placeholder, value, options, onSelect, required }) => {
+function FloatingLabelDropdown({ label, value, options, onSelect, required }: FloatingLabelDropdownProps) {
   const [visible, setVisible] = useState(false);
+  const hasValue = value && value.trim().length > 0;
+  const displayLabel = required ? `${label}*` : label;
 
   return (
     <>
-      <TouchableOpacity style={styles.dropdown} onPress={() => setVisible(true)}>
-        <Text style={[styles.dropdownText, !value && styles.dropdownPlaceholder]}>
-          {value || placeholder}{required ? '*' : ''}
-        </Text>
-        <Ionicons name="chevron-down" size={20} color="#666" />
-      </TouchableOpacity>
+      <View style={styles.floatingContainer}>
+        {hasValue && (
+          <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+            {displayLabel}
+          </Text>
+        )}
+        <TouchableOpacity 
+          style={[styles.floatingDropdown, hasValue && styles.floatingDropdownWithLabel]} 
+          onPress={() => setVisible(true)}
+        >
+          <Text style={[styles.floatingDropdownText, !hasValue && styles.floatingDropdownPlaceholder]}>
+            {value || displayLabel}
+          </Text>
+          <Ionicons name="chevron-down" size={20} color="#666" />
+        </TouchableOpacity>
+      </View>
       <Modal visible={visible} transparent animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setVisible(false)}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{placeholder}</Text>
+              <Text style={styles.modalTitle}>{label}</Text>
               <TouchableOpacity onPress={() => setVisible(false)}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
@@ -87,13 +171,89 @@ const Dropdown: React.FC<DropdownProps> = ({ placeholder, value, options, onSele
       </Modal>
     </>
   );
-};
+}
+
+// Floating Label Date Input Component
+interface FloatingLabelDateInputProps {
+  label: string;
+  value: Date | null;
+  onPress: () => void;
+  required?: boolean;
+}
+
+function FloatingLabelDateInput({ label, value, onPress, required }: FloatingLabelDateInputProps) {
+  const hasValue = !!value;
+  const displayLabel = required ? `${label}*` : label;
+
+  return (
+    <View style={styles.floatingContainer}>
+      {hasValue && (
+        <Text style={[styles.floatingLabel, styles.floatingLabelActive]}>
+          {displayLabel}
+        </Text>
+      )}
+      <TouchableOpacity 
+        style={[styles.floatingDateInput, hasValue && styles.floatingDateInputWithLabel]} 
+        onPress={onPress}
+      >
+        <Text style={[styles.floatingDateText, !hasValue && styles.floatingDropdownPlaceholder]}>
+          {value ? value.toLocaleDateString('en-GB') : displayLabel}
+        </Text>
+        <Ionicons name="calendar-outline" size={20} color={PRIMARY_PURPLE} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// Dropdown data
+const SALUTATIONS = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
+
+// Country and State types
+interface Country {
+  country_id: string;
+  name: string;
+  code: string;
+}
+
+interface State {
+  state_id: string;
+  name: string;
+  country_id: string;
+}
+
+interface Designation {
+  designation_id: string;
+  name: string;
+  description: string;
+}
+
+const PHONE_CODES = [
+  { code: '+91', country: 'India' },
+  { code: '+1', country: 'USA/Canada' },
+  { code: '+44', country: 'UK' },
+  { code: '+61', country: 'Australia' },
+  { code: '+49', country: 'Germany' },
+  { code: '+33', country: 'France' },
+  { code: '+65', country: 'Singapore' },
+  { code: '+971', country: 'UAE' },
+  { code: '+81', country: 'Japan' },
+];
 
 export default function AddEmployeeScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<any>();
 
   const [saving, setSaving] = useState(false);
+
+  // Countries and States from API
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [states, setStates] = useState<State[]>([]);
+  const [loadingCountries, setLoadingCountries] = useState(true);
+  const [loadingStates, setLoadingStates] = useState(false);
+
+  // Designations from API
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [loadingDesignations, setLoadingDesignations] = useState(true);
 
   // Personal & Contact Information
   const [salutation, setSalutation] = useState('');
@@ -102,16 +262,101 @@ export default function AddEmployeeScreen() {
   const [dob, setDob] = useState<Date | null>(null);
   const [showDob, setShowDob] = useState(false);
   const [skill, setSkill] = useState('');
+  const [skillId, setSkillId] = useState('');
   const [phoneCode, setPhoneCode] = useState('+91');
   const [phone, setPhone] = useState('');
   const [showPhoneCodePicker, setShowPhoneCodePicker] = useState(false);
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [country, setCountry] = useState('');
+  const [countryId, setCountryId] = useState('');
   const [state, setState] = useState('');
+  const [stateId, setStateId] = useState('');
   const [city, setCity] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // Fetch countries on mount
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        setLoadingCountries(true);
+        const response = await api.get('/api/countries');
+        setCountries(response.data?.countries || []);
+      } catch (error) {
+        console.error('Error fetching countries:', error);
+        // Fallback to empty array - countries API might not be available
+        setCountries([]);
+      } finally {
+        setLoadingCountries(false);
+      }
+    };
+    fetchCountries();
+  }, []);
+
+  // Fetch designations on mount
+  useEffect(() => {
+    const fetchDesignations = async () => {
+      try {
+        setLoadingDesignations(true);
+        const response = await api.get('/api/designations');
+        setDesignations(response.data?.designations || []);
+      } catch (error) {
+        console.error('Error fetching designations:', error);
+        setDesignations([]);
+      } finally {
+        setLoadingDesignations(false);
+      }
+    };
+    fetchDesignations();
+  }, []);
+
+  // Fetch states when country changes
+  useEffect(() => {
+    const fetchStates = async () => {
+      if (!countryId) {
+        setStates([]);
+        setState('');
+        setStateId('');
+        return;
+      }
+      try {
+        setLoadingStates(true);
+        const response = await api.get(`/api/countries/${countryId}/states`);
+        setStates(response.data?.states || []);
+      } catch (error) {
+        console.error('Error fetching states:', error);
+        setStates([]);
+      } finally {
+        setLoadingStates(false);
+      }
+    };
+    fetchStates();
+  }, [countryId]);
+
+  // Handle country selection
+  const handleCountrySelect = (countryName: string) => {
+    setCountry(countryName);
+    const selectedCountry = countries.find(c => c.name === countryName);
+    setCountryId(selectedCountry?.country_id || '');
+    // Reset state when country changes
+    setState('');
+    setStateId('');
+  };
+
+  // Handle state selection
+  const handleStateSelect = (stateName: string) => {
+    setState(stateName);
+    const selectedState = states.find(s => s.name === stateName);
+    setStateId(selectedState?.state_id || '');
+  };
+
+  // Handle designation/skill selection
+  const handleSkillSelect = (designationName: string) => {
+    setSkill(designationName);
+    const selectedDesignation = designations.find(d => d.name === designationName);
+    setSkillId(selectedDesignation?.designation_id || '');
+  };
 
   // Attachments
   const [aadhaarNumber, setAadhaarNumber] = useState('');
@@ -123,13 +368,14 @@ export default function AddEmployeeScreen() {
   const [employeeType, setEmployeeType] = useState<'Full Time' | 'Temporary' | 'Contract'>('Full Time');
   const [payCalculation, setPayCalculation] = useState<'Monthly' | 'Daily' | 'Hourly rate'>('Monthly');
   const [amount, setAmount] = useState('');
+  const [overtimeRate, setOvertimeRate] = useState('');
 
   const validate = () => {
     const errors: string[] = [];
     if (!salutation) errors.push('Salutation');
     if (!firstName.trim()) errors.push('First Name');
     if (!lastName.trim()) errors.push('Last Name');
-    if (!skill) errors.push('Skill');
+    if (!skill) errors.push('Designation');
     if (!phone.trim()) errors.push('Phone Number');
     if (!address.trim()) errors.push('Address');
     if (!country) errors.push('Country');
@@ -139,6 +385,7 @@ export default function AddEmployeeScreen() {
     if (!aadhaarNumber.trim()) errors.push('Aadhaar Number');
     if (!joiningDate) errors.push('Joining Date');
     if (!amount.trim()) errors.push('Amount');
+    if (!overtimeRate.trim()) errors.push('Over Time rates');
     if (email && (!email.includes('@') || !email.includes('.'))) errors.push('Valid Email');
     if (errors.length) {
       Alert.alert('Validation Error', `Please provide:\n\n• ${errors.join('\n• ')}`);
@@ -161,17 +408,18 @@ export default function AddEmployeeScreen() {
         phone: `${phoneCode} ${phone.trim()}`,
         salutation: salutation,
         dateOfBirth: dob ? dob.toISOString().split('T')[0] : undefined,
-        skill: skill,
+        designationId: skillId || undefined,  // Send designation UUID
         address: address.trim(),
-        country: country,
-        state: state,
+        countryId: countryId || undefined,  // Send country UUID
+        stateId: stateId || undefined,      // Send state UUID
         city: city.trim(),
         zipCode: zipCode.trim(),
         aadhaarNumber: aadhaarNumber.trim(),
         joiningDate: joiningDate ? joiningDate.toISOString().split('T')[0] : undefined,
         employmentType: employeeType,
-        salaryType: payCalculation.toLowerCase().replace(' ', '_'),
+        salaryType: payCalculation === 'Hourly rate' ? 'hourly' : payCalculation.toLowerCase(),
         salaryAmount: Number(amount) || 0,
+        overtimeRate: Number(overtimeRate) || 0,
       };
 
       // Create the employee first
@@ -185,6 +433,17 @@ export default function AddEmployeeScreen() {
         const file: any = { uri: photoUri, name: filename, type: 'image/jpeg' };
         formData.append('photo', file);
         await api.post(`/api/employees/${newEmployeeId}/photo`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
+      // If an aadhaar image is selected, upload it
+      if (newEmployeeId && aadhaarFileUri) {
+        const formData = new FormData();
+        const filename = aadhaarFileUri.split('/').pop() || `aadhaar-${newEmployeeId}.jpg`;
+        const file: any = { uri: aadhaarFileUri, name: filename, type: 'image/jpeg' };
+        formData.append('aadhaar', file);
+        await api.post(`/api/employees/${newEmployeeId}/aadhaar`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
       }
@@ -236,6 +495,37 @@ export default function AddEmployeeScreen() {
     }
   };
 
+  const pickAadhaarImage = async (fromCamera: boolean) => {
+    if (fromCamera) {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow camera access to take a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAadhaarFileUri(result.assets[0].uri);
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow photo library access to pick a photo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAadhaarFileUri(result.assets[0].uri);
+      }
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -258,8 +548,8 @@ export default function AddEmployeeScreen() {
           <Text style={styles.sectionTitle}>Personal & Contact Information</Text>
 
           {/* Salutation */}
-          <Dropdown
-            placeholder="Salutation"
+          <FloatingLabelDropdown
+            label="Salutation"
             value={salutation}
             options={SALUTATIONS}
             onSelect={setSalutation}
@@ -269,121 +559,124 @@ export default function AddEmployeeScreen() {
           {/* First Name & Last Name */}
           <View style={styles.row}>
             <View style={styles.halfInput}>
-              <TextInput
-                style={styles.input}
-                placeholder="First name*"
-                placeholderTextColor="#999"
+              <FloatingLabelInput
+                label="First name"
                 value={firstName}
                 onChangeText={setFirstName}
+                required
               />
             </View>
             <View style={styles.halfInput}>
-              <TextInput
-                style={styles.input}
-                placeholder="Last name*"
-                placeholderTextColor="#999"
+              <FloatingLabelInput
+                label="Last name"
                 value={lastName}
                 onChangeText={setLastName}
+                required
               />
             </View>
           </View>
 
           {/* Date of Birth */}
-          <TouchableOpacity style={styles.dateInput} onPress={() => setShowDob(true)}>
-            <Text style={[styles.dateText, !dob && styles.placeholderText]}>
-              {dob ? dob.toLocaleDateString('en-GB') : 'Date of birth'}
-            </Text>
-            <Ionicons name="calendar-outline" size={20} color="#6C5CE7" />
-          </TouchableOpacity>
+          <FloatingLabelDateInput
+            label="Date of birth"
+            value={dob}
+            onPress={() => setShowDob(true)}
+          />
 
-          {/* Skill */}
-          <Dropdown
-            placeholder="Skill"
-            value={skill}
-            options={SKILLS}
-            onSelect={setSkill}
+          {/* Designation/Skill */}
+          {loadingDesignations ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C5CE7" />
+              <Text style={styles.loadingText}>Loading designations...</Text>
+            </View>
+          ) : (
+            <FloatingLabelDropdown
+              label="Designation"
+              value={skill}
+              options={designations.map(d => d.name)}
+              onSelect={handleSkillSelect}
+              required
+            />
+          )}
+
+          {/* Phone Number with Country Code */}
+          <FloatingLabelPhoneInput
+            label="Phone number"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            phoneCode={phoneCode}
+            onPhoneCodePress={() => setShowPhoneCodePicker(true)}
             required
           />
 
-          {/* Phone Number with Country Code */}
-          <TouchableOpacity style={styles.dropdown} onPress={() => setShowPhoneCodePicker(true)}>
-            <View style={styles.phoneInputContainer}>
-              <Text style={styles.phoneCode}>{phoneCode}</Text>
-              <TextInput
-                style={styles.phoneInput}
-                placeholder="Phone number*"
-                placeholderTextColor="#999"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-            <Ionicons name="chevron-down" size={20} color="#666" />
-          </TouchableOpacity>
-
           {/* Email ID */}
-          <View style={styles.dropdown}>
-            <TextInput
-              style={styles.inputNoBorder}
-              placeholder="Email ID"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <Ionicons name="chevron-down" size={20} color="#666" />
-          </View>
+          <FloatingLabelInput
+            label="Email ID"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
           {/* Address */}
-          <TextInput
-            style={[styles.input, styles.addressInput]}
-            placeholder="Address*"
-            placeholderTextColor="#999"
+          <FloatingLabelInput
+            label="Address"
             value={address}
             onChangeText={setAddress}
             multiline
             numberOfLines={2}
+            style={styles.addressInput}
+            required
           />
 
           {/* Country */}
-          <Dropdown
-            placeholder="Country"
-            value={country}
-            options={COUNTRIES}
-            onSelect={(val) => {
-              setCountry(val);
-              setState(''); // Reset state when country changes
-            }}
-            required
-          />
+          {loadingCountries ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C5CE7" />
+              <Text style={styles.loadingText}>Loading countries...</Text>
+            </View>
+          ) : (
+            <FloatingLabelDropdown
+              label="Country"
+              value={country}
+              options={countries.map(c => c.name)}
+              onSelect={handleCountrySelect}
+              required
+            />
+          )}
 
           {/* State */}
-          <Dropdown
-            placeholder="State"
-            value={state}
-            options={country ? (STATES[country] || []) : []}
-            onSelect={setState}
-            required
-          />
+          {loadingStates ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#6C5CE7" />
+              <Text style={styles.loadingText}>Loading states...</Text>
+            </View>
+          ) : (
+            <FloatingLabelDropdown
+              label="State"
+              value={state}
+              options={states.map(s => s.name)}
+              onSelect={handleStateSelect}
+              required
+            />
+          )}
 
           {/* City */}
-          <TextInput
-            style={styles.input}
-            placeholder="City*"
-            placeholderTextColor="#999"
+          <FloatingLabelInput
+            label="City"
             value={city}
             onChangeText={setCity}
+            required
           />
 
           {/* Zip Code */}
-          <TextInput
-            style={styles.input}
-            placeholder="Zip Code*"
-            placeholderTextColor="#999"
+          <FloatingLabelInput
+            label="Zip Code"
             value={zipCode}
             onChangeText={setZipCode}
             keyboardType="numeric"
+            required
           />
 
           {/* Upload Photograph */}
@@ -419,39 +712,40 @@ export default function AddEmployeeScreen() {
           <Text style={styles.sectionTitle}>Attachments</Text>
 
           {/* Aadhaar Number */}
-          <TextInput
-            style={styles.input}
-            placeholder="Aadhaar number*"
-            placeholderTextColor="#999"
+          <FloatingLabelInput
+            label="Aadhaar number"
             value={aadhaarNumber}
             onChangeText={setAadhaarNumber}
             keyboardType="numeric"
             maxLength={12}
+            required
           />
 
           {/* Add Aadhaar File */}
-          <View style={styles.attachFileRow}>
-            <Text style={styles.attachFileText}>
-              {aadhaarFileUri ? 'Aadhaar file added' : 'Add Aadhaar file'}
-            </Text>
-            <TouchableOpacity
-              onPress={async () => {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert('Permission required', 'Please allow photo library access.');
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.All,
-                  quality: 0.8,
-                });
-                if (!result.canceled && result.assets && result.assets.length > 0) {
-                  setAadhaarFileUri(result.assets[0].uri);
-                }
-              }}
-            >
-              <Text style={styles.attachLinkText}>Attach</Text>
-            </TouchableOpacity>
+          <View style={styles.uploadSection}>
+            <Text style={styles.uploadLabel}>Upload Aadhaar Card</Text>
+            <Text style={styles.uploadHint}>png, jpg, Gif up to 2MB</Text>
+            
+            {aadhaarFileUri ? (
+              <View style={styles.photoPreviewContainer}>
+                <Image source={{ uri: aadhaarFileUri }} style={styles.photoPreview} />
+                <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setAadhaarFileUri(null)}>
+                  <Ionicons name="close-circle" size={24} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.uploadRow}>
+                <View style={styles.addFilesContainer}>
+                  <Text style={styles.addFilesText}>Add files</Text>
+                  <TouchableOpacity style={styles.attachButton} onPress={() => pickAadhaarImage(false)}>
+                    <Text style={styles.attachButtonText}>Attach</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={styles.cameraButton} onPress={() => pickAadhaarImage(true)}>
+                  <Ionicons name="camera" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
@@ -460,12 +754,12 @@ export default function AddEmployeeScreen() {
           <Text style={styles.sectionTitle}>Payments</Text>
 
           {/* Joining Date */}
-          <TouchableOpacity style={styles.dateInput} onPress={() => setShowJoiningDate(true)}>
-            <Text style={[styles.dateText, !joiningDate && styles.placeholderText]}>
-              {joiningDate ? joiningDate.toLocaleDateString('en-GB') : 'Joining Date'}
-            </Text>
-            <Ionicons name="calendar-outline" size={20} color="#6C5CE7" />
-          </TouchableOpacity>
+          <FloatingLabelDateInput
+            label="Joining Date"
+            value={joiningDate}
+            onPress={() => setShowJoiningDate(true)}
+            required
+          />
 
           {/* Employee Type */}
           <Text style={styles.fieldLabel}>Employee Type</Text>
@@ -500,13 +794,21 @@ export default function AddEmployeeScreen() {
           </View>
 
           {/* Amount */}
-          <TextInput
-            style={styles.input}
-            placeholder="Amount*"
-            placeholderTextColor="#999"
+          <FloatingLabelInput
+            label="Amount"
             value={amount}
             onChangeText={setAmount}
             keyboardType="numeric"
+            required
+          />
+
+          {/* Over Time rates */}
+          <FloatingLabelInput
+            label="Over Time rates"
+            value={overtimeRate}
+            onChangeText={setOvertimeRate}
+            keyboardType="numeric"
+            required
           />
         </View>
 
@@ -646,89 +948,143 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 20,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#333',
-    backgroundColor: '#fff',
+  // Floating Label Input Styles
+  floatingContainer: {
+    position: 'relative',
+    paddingTop: 4,
     marginBottom: 12,
   },
-  inputNoBorder: {
+  floatingLabel: {
+    position: 'absolute',
+    left: 12,
+    top: 14,
+    fontSize: 14,
+    color: '#9CA3AF',
+    zIndex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 4,
+  },
+  floatingLabelActive: {
+    top: -6,
+    fontSize: 11,
+    color: PRIMARY_PURPLE,
+  },
+  floatingInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 15,
+    color: TEXT_DARK,
+    minHeight: 50,
+  },
+  floatingInputWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  floatingInputFocused: {
+    borderColor: PRIMARY_PURPLE,
+  },
+  // Floating Phone Input Styles
+  floatingPhoneWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    overflow: 'hidden',
+    minHeight: 50,
+  },
+  floatingCountryCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#F8F9FA',
+  },
+  floatingCountryCode: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: TEXT_DARK,
+  },
+  floatingPhoneDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E5E5EA',
+  },
+  floatingPhoneInput: {
     flex: 1,
     fontSize: 15,
-    color: '#333',
-    paddingVertical: 0,
+    color: TEXT_DARK,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
+  floatingPhoneInputWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  // Floating Dropdown Styles
+  floatingDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    minHeight: 50,
+  },
+  floatingDropdownWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  floatingDropdownText: {
+    fontSize: 15,
+    color: TEXT_DARK,
+  },
+  floatingDropdownPlaceholder: {
+    color: '#999',
+  },
+  // Floating Date Input Styles
+  floatingDateInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    minHeight: 50,
+  },
+  floatingDateInputWithLabel: {
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  floatingDateText: {
+    fontSize: 15,
+    color: TEXT_DARK,
+  },
+  // Other Styles
   addressInput: {
-    height: 60,
+    height: 70,
     textAlignVertical: 'top',
   },
   row: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 12,
   },
   halfInput: {
     flex: 1,
-  },
-  dropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-    marginBottom: 12,
-  },
-  dropdownText: {
-    fontSize: 15,
-    color: '#333',
-  },
-  dropdownPlaceholder: {
-    color: '#999',
-  },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-    marginBottom: 12,
-  },
-  dateText: {
-    fontSize: 15,
-    color: '#333',
-  },
-  placeholderText: {
-    color: '#999',
-  },
-  phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  phoneCode: {
-    fontSize: 15,
-    color: '#333',
-    marginRight: 8,
-    fontWeight: '500',
-  },
-  phoneInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-    paddingVertical: 0,
   },
   uploadSection: {
     marginTop: 8,
@@ -803,27 +1159,6 @@ const styles = StyleSheet.create({
     right: -8,
     backgroundColor: '#fff',
     borderRadius: 12,
-  },
-  // Attachments styles
-  attachFileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-  },
-  attachFileText: {
-    fontSize: 15,
-    color: '#999',
-  },
-  attachLinkText: {
-    fontSize: 15,
-    color: '#6C5CE7',
-    fontWeight: '500',
   },
   // Payments styles
   fieldLabel: {
@@ -918,6 +1253,20 @@ const styles = StyleSheet.create({
   modalOptionTextSelected: {
     color: '#6C5CE7',
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  loadingText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#666',
   },
 });
 

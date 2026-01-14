@@ -40,13 +40,13 @@ router.get('/overview', async (req, res) => {
       pool.query("SELECT COUNT(*) as count FROM projects WHERE status = 'pending'"),
       pool.query("SELECT COUNT(*) as count FROM projects WHERE status = 'on_hold'"),
       pool.query("SELECT COUNT(*) as count FROM projects WHERE status = 'cancelled'"),
-      pool.query('SELECT COUNT(*) as count FROM employees WHERE is_active = true'),
-      pool.query('SELECT COUNT(*) as count FROM time_entries WHERE is_active = true'),
+      pool.query('SELECT COUNT(*) as count FROM users WHERE is_active = true'),
+      pool.query('SELECT COUNT(*) as count FROM time_entries'),
     ]);
 
     // Fetch recent activities (task_created, task_assigned, time_logged)
     const recentActivities = await pool.query(
-      `SELECT id, type, actor_id, actor_name, employee_id, employee_name, project_id, project_name, task_id, task_title, description, created_at
+      `SELECT id, action_type, actor_id, actor_name, employee_id, employee_name, project_id, project_name, task_id, task_title, description, created_at
        FROM activity_logs
        ORDER BY created_at DESC
        LIMIT 10`
@@ -103,46 +103,46 @@ router.get('/analytics', async (req, res) => {
     ] = await Promise.all([
       // Time by project
       pool.query(`
-        SELECT p.name, p.status, SUM(te.duration_minutes) as total_minutes, COUNT(te.id) as entry_count
+        SELECT p.project_name, p.status, SUM(te.duration_minutes) as total_minutes, COUNT(te.id) as entry_count
         FROM time_entries te
-        JOIN tasks t ON te.task_id = t.id
-        JOIN projects p ON t.project_id = p.id
-        WHERE te.is_active = true ${dateFilter}
-        GROUP BY p.id, p.name, p.status
+        JOIN tasks t ON te.task_id = t.task_id
+        JOIN projects p ON t.project_id = p.project_id
+        WHERE 1=1 ${dateFilter}
+        GROUP BY p.project_id, p.project_name, p.status
         ORDER BY total_minutes DESC
         LIMIT 10
       `, params),
       
       // Time by employee
       pool.query(`
-        SELECT e.first_name, e.last_name, e.employee_id, SUM(te.duration_minutes) as total_minutes, COUNT(te.id) as entry_count
+        SELECT e.first_name, e.last_name, e.user_id as employee_id, SUM(te.duration_minutes) as total_minutes, COUNT(te.id) as entry_count
         FROM time_entries te
-        JOIN employees e ON te.employee_id = e.id
-        WHERE te.is_active = true ${dateFilter}
-        GROUP BY e.id, e.first_name, e.last_name, e.employee_id
+        JOIN users e ON te.employee_id = e.user_id
+        WHERE 1=1 ${dateFilter}
+        GROUP BY e.user_id, e.first_name, e.last_name
         ORDER BY total_minutes DESC
         LIMIT 10
       `, params),
       
       // Cost by project (removed as cost column doesn't exist)
       pool.query(`
-        SELECT p.name, p.status, 0 as total_cost, COUNT(te.id) as entry_count
+        SELECT p.project_name, p.status, 0 as total_cost, COUNT(te.id) as entry_count
         FROM time_entries te
-        JOIN tasks t ON te.task_id = t.id
-        JOIN projects p ON t.project_id = p.id
-        WHERE te.is_active = true ${dateFilter}
-        GROUP BY p.id, p.name, p.status
+        JOIN tasks t ON te.task_id = t.task_id
+        JOIN projects p ON t.project_id = p.project_id
+        WHERE 1=1 ${dateFilter}
+        GROUP BY p.project_id, p.project_name, p.status
         ORDER BY entry_count DESC
         LIMIT 10
       `, params),
       
       // Cost by employee (removed as cost column doesn't exist)
       pool.query(`
-        SELECT e.first_name, e.last_name, e.employee_id, 0 as total_cost, COUNT(te.id) as entry_count
+        SELECT e.first_name, e.last_name, e.user_id as employee_id, 0 as total_cost, COUNT(te.id) as entry_count
         FROM time_entries te
-        JOIN employees e ON te.employee_id = e.id
-        WHERE te.is_active = true ${dateFilter}
-        GROUP BY e.id, e.first_name, e.last_name, e.employee_id
+        JOIN users e ON te.employee_id = e.user_id
+        WHERE 1=1 ${dateFilter}
+        GROUP BY e.user_id, e.first_name, e.last_name
         ORDER BY entry_count DESC
         LIMIT 10
       `, params),
@@ -151,7 +151,7 @@ router.get('/analytics', async (req, res) => {
       pool.query(`
         SELECT DATE(te.start_time) as date, SUM(te.duration_minutes) as total_minutes, COUNT(te.id) as entry_count
         FROM time_entries te
-        WHERE te.is_active = true ${dateFilter}
+        WHERE 1=1 ${dateFilter}
         GROUP BY DATE(te.start_time)
         ORDER BY date DESC
         LIMIT 30
@@ -167,13 +167,13 @@ router.get('/analytics', async (req, res) => {
       
       // Employee performance (hours per day)
       pool.query(`
-        SELECT e.first_name, e.last_name, e.employee_id, 
+        SELECT e.first_name, e.last_name, e.user_id as employee_id, 
                ROUND(AVG(te.duration_minutes) / 60, 2) as avg_hours_per_day,
                COUNT(DISTINCT DATE(te.start_time)) as days_worked
         FROM time_entries te
-        JOIN employees e ON te.employee_id = e.id
-        WHERE te.is_active = true ${dateFilter}
-        GROUP BY e.id, e.first_name, e.last_name, e.employee_id
+        JOIN users e ON te.employee_id = e.user_id
+        WHERE 1=1 ${dateFilter}
+        GROUP BY e.user_id, e.first_name, e.last_name
         HAVING COUNT(DISTINCT DATE(te.start_time)) > 0
         ORDER BY avg_hours_per_day DESC
         LIMIT 10
@@ -233,31 +233,31 @@ router.get('/reports', async (req, res) => {
               0 as total_cost,
               COUNT(te.id) as total_entries
             FROM time_entries te
-            JOIN tasks t ON te.task_id = t.id
-            WHERE te.is_active = true ${dateFilter}
+            JOIN tasks t ON te.task_id = t.task_id
+            WHERE 1=1 ${dateFilter}
           `, params),
           
           pool.query(`
-            SELECT p.name, p.status, p.budget,
+            SELECT p.project_name as name, p.status, p.estimated_value as budget,
                    SUM(te.duration_minutes) as total_minutes,
                    0 as total_cost,
                    COUNT(te.id) as entry_count
             FROM projects p
-            LEFT JOIN tasks t ON p.id = t.project_id
-            LEFT JOIN time_entries te ON t.id = te.task_id AND te.is_active = true ${dateFilter}
-            GROUP BY p.id, p.name, p.status, p.budget
+            LEFT JOIN tasks t ON p.project_id = t.project_id
+            LEFT JOIN time_entries te ON t.task_id = te.task_id
+            GROUP BY p.project_id, p.project_name, p.status, p.estimated_value
             ORDER BY total_minutes DESC
           `, params),
           
           pool.query(`
-            SELECT e.first_name, e.last_name, e.employee_id, e.department,
+            SELECT e.first_name, e.last_name, e.user_id as employee_id, NULL as department,
                    SUM(te.duration_minutes) as total_minutes,
                    0 as total_cost,
                    COUNT(te.id) as entry_count
-            FROM employees e
-            LEFT JOIN time_entries te ON e.id = te.employee_id AND te.is_active = true ${dateFilter}
+            FROM users e
+            LEFT JOIN time_entries te ON e.user_id = te.employee_id
             WHERE e.is_active = true
-            GROUP BY e.id, e.first_name, e.last_name, e.employee_id, e.department
+            GROUP BY e.user_id, e.first_name, e.last_name
             ORDER BY total_minutes DESC
           `, params)
         ]);
@@ -283,16 +283,16 @@ router.get('/reports', async (req, res) => {
         
       case 'overdue':
         const overdueProjects = await pool.query(`
-          SELECT p.id, p.name, p.end_date, p.status,
-                 c.name as client_name,
+          SELECT p.project_id as id, p.project_name as name, p.end_date, p.status,
+                 COALESCE(c.first_name || ' ' || c.last_name, 'Unknown') as client_name,
                  SUM(te.duration_minutes) as total_minutes,
                  0 as total_cost
           FROM projects p
-          JOIN clients c ON p.client_id = c.id
-          LEFT JOIN tasks t ON p.id = t.project_id
-          LEFT JOIN time_entries te ON t.id = te.task_id AND te.is_active = true
-          WHERE p.end_date < CURRENT_DATE AND p.status NOT IN ('completed', 'cancelled')
-          GROUP BY p.id, p.name, p.end_date, p.status, c.name
+          JOIN clients c ON p.client_id = c.client_id
+          LEFT JOIN tasks t ON p.project_id = t.project_id
+          LEFT JOIN time_entries te ON t.task_id = te.task_id
+          WHERE p.end_date < CURRENT_DATE AND p.status NOT IN ('Completed', 'Cancelled')
+          GROUP BY p.project_id, p.project_name, p.end_date, p.status, c.first_name, c.last_name
           ORDER BY p.end_date ASC
         `);
         
@@ -321,7 +321,7 @@ router.get('/activity/task/:taskId', async (req, res) => {
     const { limit = 20 } = req.query;
     
     const activities = await pool.query(
-      `SELECT id, type, actor_id, actor_name, employee_id, employee_name, project_id, project_name, task_id, task_title, description, created_at
+      `SELECT id, action_type, actor_id, actor_name, employee_id, employee_name, project_id, project_name, task_id, task_title, description, created_at
        FROM activity_logs
        WHERE task_id = $1
        ORDER BY created_at DESC

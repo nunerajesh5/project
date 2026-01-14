@@ -67,7 +67,7 @@ router.get('/', async (req, res) => {
     
     if (search) {
       params.push(`%${search.toLowerCase()}%`);
-      where += ` AND (LOWER(e.first_name) LIKE $${params.length} OR LOWER(e.last_name) LIKE $${params.length} OR LOWER(e.employee_id) LIKE $${params.length})`;
+      where += ` AND (LOWER(e.first_name) LIKE $${params.length} OR LOWER(e.last_name) LIKE $${params.length} OR LOWER(u.user_id) LIKE $${params.length})`;
     }
     
     const salariesQuery = `
@@ -85,10 +85,10 @@ router.get('/', async (req, res) => {
         s.updated_at,
         e.first_name,
         e.last_name,
-        e.employee_id as emp_id,
-        e.department
+        u.user_id as emp_id,
+        u.department_id
       FROM salaries s
-      JOIN employees e ON s.employee_id = e.id
+      JOIN users u ON s.employee_id = u.user_id
       ${where}
       ORDER BY s.effective_date DESC, e.first_name ASC
       LIMIT ${limit} OFFSET ${offset}
@@ -97,7 +97,7 @@ router.get('/', async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as count 
       FROM salaries s
-      JOIN employees e ON s.employee_id = e.id
+      JOIN users u ON s.employee_id = u.user_id
       ${where}
     `;
     
@@ -145,10 +145,10 @@ router.get('/employee/:employeeId', async (req, res) => {
         s.created_at,
         e.first_name,
         e.last_name,
-        e.employee_id as emp_id,
-        e.department
+        u.user_id as emp_id,
+        u.department_id
       FROM salaries s
-      JOIN employees e ON s.employee_id = e.id
+      JOIN users u ON s.employee_id = u.user_id
       ${where}
       ORDER BY s.effective_date DESC
     `;
@@ -189,10 +189,10 @@ router.get('/current', async (req, res) => {
         s.notes,
         e.first_name,
         e.last_name,
-        e.employee_id as emp_id,
-        e.department
+        u.user_id as emp_id,
+        u.department_id
       FROM salaries s
-      JOIN employees e ON s.employee_id = e.id
+      JOIN users u ON s.employee_id = u.user_id
       WHERE s.is_current = true
       ORDER BY e.first_name ASC
     `;
@@ -223,14 +223,14 @@ router.post('/', validateSalaryData, async (req, res) => {
       notes
     } = req.body;
     
-    // Check if employee exists
-    const employeeCheck = await pool.query(
-      'SELECT id, first_name, last_name FROM employees WHERE id = $1',
+    // Check if user exists
+    const userCheck = await pool.query(
+      'SELECT user_id, first_name, last_name FROM users WHERE user_id = $1',
       [employee_id]
     );
     
-    if (employeeCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Employee not found' });
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
     }
     
     // If this is a new current salary, mark previous current salary as inactive
@@ -386,15 +386,15 @@ router.get('/stats', async (req, res) => {
     
     const departmentStatsQuery = `
       SELECT 
-        e.department,
+        u.department_id,
         COUNT(s.id) as salary_count,
         AVG(s.salary_amount) as avg_salary,
         MIN(s.salary_amount) as min_salary,
         MAX(s.salary_amount) as max_salary
       FROM salaries s
-      JOIN employees e ON s.employee_id = e.id
+      JOIN users u ON s.employee_id = u.user_id
       WHERE s.is_current = true
-      GROUP BY e.department
+      GROUP BY u.department_id
       ORDER BY avg_salary DESC
     `;
     

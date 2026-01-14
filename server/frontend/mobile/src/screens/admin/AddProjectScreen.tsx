@@ -307,11 +307,39 @@ export default function AddProjectScreen() {
     );
   };
 
+  // Geocode address to get coordinates using OpenStreetMap Nominatim
+  const geocodeAddress = async (address: string): Promise<string | null> => {
+    if (!address.trim()) return null;
+    try {
+      const encodedAddress = encodeURIComponent(address.trim());
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'ProjectTimeManager/1.0',
+          },
+        }
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const { lat, lon } = data[0];
+        return `${lat},${lon}`;
+      }
+      return null;
+    } catch (error) {
+      console.warn('Geocoding failed:', error);
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     try {
       setLoading(true);
+
+      // Auto-geocode the location address
+      const coordinates = await geocodeAddress(location);
       
       // Create the project
       const projectResponse = await api.post('/api/projects', {
@@ -323,6 +351,7 @@ export default function AddProjectScreen() {
         status: 'To Do',
         budget: estimatedValue ? parseFloat(estimatedValue) : null,
         location: location.trim() || null,
+        coordinates: coordinates,
       });
 
       console.log('Project created successfully:', projectResponse.data);
@@ -478,7 +507,7 @@ export default function AddProjectScreen() {
               />
             </View>
 
-            {/* Description */}
+            {/* Description */}}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.label}>{t('projects.project_description')}</Text>

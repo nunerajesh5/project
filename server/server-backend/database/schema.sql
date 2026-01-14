@@ -1,4 +1,14 @@
--- Minimal schema for Project Time Manager
+-- Per-Organization Database Schema for Project Time Manager
+-- Database: project_time_manager{N} (e.g., project_time_manager1, project_time_manager2, etc.)
+--
+-- ARCHITECTURE:
+-- - project_registry: Single master database storing all organization records (controlled by App Creator)
+-- - project_time_manager{N}: This schema - Per-organization databases (controlled by each Org Admin)
+--   A new database is created automatically when an organization registers.
+--
+-- This database contains all operational data for a single organization:
+-- - employees, clients, projects, tasks, time_entries, salaries, project_attachments, etc.
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$ BEGIN
@@ -70,24 +80,7 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS time_entries (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  work_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
-  end_time TIMESTAMP WITH TIME ZONE,
-  duration_minutes INTEGER,
-  description TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_time_entries_task_id ON time_entries(task_id);
-CREATE INDEX IF NOT EXISTS idx_time_entries_employee_id ON time_entries(employee_id);
-
--- Tasks table
+-- Tasks table (must be created before time_entries due to foreign key reference)
 CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -105,6 +98,24 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_approved ON tasks(approved);
+
+-- Time entries table (references tasks, so must come after tasks)
+CREATE TABLE IF NOT EXISTS time_entries (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  work_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_time TIMESTAMP WITH TIME ZONE,
+  duration_minutes INTEGER,
+  description TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_time_entries_task_id ON time_entries(task_id);
+CREATE INDEX IF NOT EXISTS idx_time_entries_employee_id ON time_entries(employee_id);
 
 -- Salaries table for historical salary tracking
 CREATE TABLE IF NOT EXISTS salaries (
@@ -125,8 +136,8 @@ CREATE INDEX IF NOT EXISTS idx_salaries_employee_id ON salaries(employee_id);
 CREATE INDEX IF NOT EXISTS idx_salaries_effective_date ON salaries(effective_date);
 CREATE INDEX IF NOT EXISTS idx_salaries_is_current ON salaries(is_current);
 
--- Attachments table for storing upload metadata
-CREATE TABLE IF NOT EXISTS attachments (
+-- Project attachments table for storing upload metadata
+CREATE TABLE IF NOT EXISTS project_attachments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
@@ -152,10 +163,10 @@ CREATE TABLE IF NOT EXISTS task_attachments (
 );
 
 -- Indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_attachments_task_id ON attachments(task_id);
-CREATE INDEX IF NOT EXISTS idx_attachments_employee_id ON attachments(employee_id);
-CREATE INDEX IF NOT EXISTS idx_attachments_status ON attachments(status);
-CREATE INDEX IF NOT EXISTS idx_attachments_uploaded_at ON attachments(uploaded_at);
+CREATE INDEX IF NOT EXISTS idx_project_attachments_task_id ON project_attachments(task_id);
+CREATE INDEX IF NOT EXISTS idx_project_attachments_employee_id ON project_attachments(employee_id);
+CREATE INDEX IF NOT EXISTS idx_project_attachments_status ON project_attachments(status);
+CREATE INDEX IF NOT EXISTS idx_project_attachments_uploaded_at ON project_attachments(uploaded_at);
 
 CREATE INDEX IF NOT EXISTS idx_task_attachments_upload_id ON task_attachments(upload_id);
 CREATE INDEX IF NOT EXISTS idx_task_attachments_mime_type ON task_attachments(mime_type);
@@ -197,7 +208,7 @@ CREATE TABLE IF NOT EXISTS organization_memberships (
 -- Activity logs for dashboard/recent activity
 CREATE TABLE IF NOT EXISTS activity_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  type VARCHAR(30) NOT NULL, -- e.g. 'task_assigned', 'task_created', 'time_logged'
+  action_type VARCHAR(30) NOT NULL, -- e.g. 'task_assigned', 'task_created', 'time_logged'
   actor_id UUID, -- user or employee who performed the action
   actor_name VARCHAR(100),
   employee_id UUID, -- affected employee (for assignments, time logs)

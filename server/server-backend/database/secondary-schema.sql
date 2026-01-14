@@ -1,12 +1,17 @@
 -- Secondary Database Schema for Organization & Employee Registration
 -- This database stores registration information separately from the main operational database
--- Database: project_registry
+-- Database: project_registry (MASTER DATABASE - Only ONE exists, controlled by App Creator)
+--
+-- ARCHITECTURE:
+-- - project_registry (this database): Single master database storing all organization records
+-- - project_time_manager{N}: Per-organization databases (project_time_manager1, project_time_manager2, etc.)
+--   Each organization gets its own isolated database created dynamically when they register.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Organizations Table
--- Stores all organization registration details
+-- Organizations Registry Table
+-- Stores all organization registration details including their database name
 CREATE TABLE IF NOT EXISTS organizations_registry (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   organization_id VARCHAR(50) UNIQUE NOT NULL,
@@ -27,6 +32,7 @@ CREATE TABLE IF NOT EXISTS organizations_registry (
   max_employees INTEGER DEFAULT 50,
   join_code VARCHAR(20) UNIQUE NOT NULL,
   logo_url TEXT,
+  database_name VARCHAR(100), -- The organization's database (e.g., project_time_manager1)
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -43,6 +49,7 @@ CREATE TABLE IF NOT EXISTS employees_registry (
   employee_name VARCHAR(255),
   password_hash VARCHAR(255),
   role VARCHAR(50) DEFAULT 'employee',
+  database_name VARCHAR(100), -- The organization's database for this employee
   is_active BOOLEAN DEFAULT true,
   registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(organization_name, employee_email)
